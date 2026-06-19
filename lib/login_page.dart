@@ -1,11 +1,10 @@
 import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'main.dart';
 import 'admin_dashboard_page.dart';
 import 'user_main_layout.dart';
+import 'otp_verification_page.dart';
 
 // ─── Colour palette ──────────────────────────────────────────────────────────
 const _kBlue1 = Color(0xFF4776E6);
@@ -41,8 +40,6 @@ class _LoginPageState extends State<LoginPage>
   final _sPass   = TextEditingController();
   final _sMaster = TextEditingController();
   final _sKey    = GlobalKey<FormState>();
-  Uint8List? _pic;
-
   // ── Animations ──
   late AnimationController _bgCtrl;   // floating blobs
   late AnimationController _tabCtrl;  // tab slide
@@ -148,26 +145,20 @@ class _LoginPageState extends State<LoginPage>
       final uid = res.user?.id;
       if (uid == null) throw Exception('Signup failed');
 
-      String photoUrl = '';
-      if (_pic != null) {
-        final path = 'profiles/$uid.jpg';
-        await supabase.storage.from('app-images').uploadBinary(path, _pic!,
-            fileOptions:
-                const FileOptions(contentType: 'image/jpeg', upsert: true));
-        photoUrl = supabase.storage.from('app-images').getPublicUrl(path);
-      }
-
-      await supabase.from('users').insert({
-        'id': uid,
-        'full_name': _sName.text.trim(),
-        'email': _sEmail.text.trim(),
-        'role': _isAdmin ? 'admin' : 'user',
-        'photo_url': photoUrl,
-      });
-
       if (!mounted) return;
-      _snack(_isAdmin ? 'Admin registered! Sign in.' : 'Account created! Sign in.');
-      _toLogin();
+      // Navigate to OTP page; image upload + DB insert happen after verification
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpVerificationPage(
+            email:    _sEmail.text.trim(),
+            fullName: _sName.text.trim(),
+            role:     _isAdmin ? 'admin' : 'user',
+            userId:   uid,
+            picBytes: null,
+          ),
+        ),
+      );
     } on AuthException catch (e) {
       _snack(e.message, error: true);
     } catch (e) {
@@ -185,16 +176,6 @@ class _LoginPageState extends State<LoginPage>
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
-  }
-
-  Future<void> _pickPic() async {
-    final img = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, imageQuality: 70);
-    if (img != null) {
-      setState(() async => _pic = await img.readAsBytes());
-      final bytes = await img.readAsBytes();
-      if (mounted) setState(() => _pic = bytes);
-    }
   }
 
   // ── Build ──
@@ -311,33 +292,6 @@ class _LoginPageState extends State<LoginPage>
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Avatar picker
-          Center(
-            child: GestureDetector(
-              onTap: _pickPic,
-              child: Stack(children: [
-                CircleAvatar(
-                  radius: 36,
-                  backgroundImage: _pic != null ? MemoryImage(_pic!) : null,
-                  backgroundColor: c1.withValues(alpha: 0.1),
-                  child: _pic == null
-                      ? Icon(Icons.person_outline, size: 32, color: c1)
-                      : null,
-                ),
-                Positioned(
-                  bottom: 0, right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                        color: c1, shape: BoxShape.circle),
-                    child: const Icon(Icons.camera_alt, size: 14,
-                        color: Colors.white),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 16),
           _AuthField(
             ctrl: _sName,
             hint: 'Full Name',
