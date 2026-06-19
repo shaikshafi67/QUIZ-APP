@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'main.dart';
-import 'profile_page.dart';
 import 'app_theme.dart';
+import 'profile_page.dart';
 
 class UserHomePage extends StatefulWidget {
   final Function(int) onTabChange;
@@ -334,38 +334,16 @@ class _UserHomePageState extends State<UserHomePage>
                                   ],
                                 ),
                                 const SizedBox(height: 14),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _quickActionCard(
-                                        icon: '👤',
-                                        label: 'Profile',
-                                        subtitle: 'Edit your info',
-                                        colors: [
-                                          AppColors.violet,
-                                          AppColors.purple
-                                        ],
-                                        onTap: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const ProfilePage())),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: _quickActionCard(
-                                        icon: '⚡',
-                                        label: 'Quick Play',
-                                        subtitle: 'Random quiz',
-                                        colors: const [
-                                          Color(0xFFFFD700),
-                                          AppColors.orange
-                                        ],
-                                        onTap: () => widget.onTabChange(1),
-                                      ),
-                                    ),
+                                _quickActionCard(
+                                  icon: '⚡',
+                                  label: 'Quick Play',
+                                  subtitle: 'Jump into a random quiz instantly',
+                                  colors: const [
+                                    Color(0xFFFFD700),
+                                    AppColors.orange,
                                   ],
+                                  onTap: () => widget.onTabChange(1),
+                                  fullWidth: true,
                                 ),
                               ],
                             ),
@@ -389,32 +367,58 @@ class _UserHomePageState extends State<UserHomePage>
     required String subtitle,
     required List<Color> colors,
     required VoidCallback onTap,
+    bool fullWidth = false,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: GlassCard(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: colors),
-                borderRadius: BorderRadius.circular(12),
+        child: fullWidth
+            ? Row(children: [
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: colors),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                      child: Text(icon, style: const TextStyle(fontSize: 24))),
+                ),
+                const SizedBox(width: 16),
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(label,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 15)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ]),
+                const Spacer(),
+                Icon(Icons.arrow_forward_ios_rounded,
+                    size: 14, color: Colors.grey.shade400),
+              ])
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: colors),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                        child:
+                            Text(icon, style: const TextStyle(fontSize: 22))),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(label,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(subtitle,
+                      style:
+                          const TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
               ),
-              child: Center(
-                  child: Text(icon, style: const TextStyle(fontSize: 22))),
-            ),
-            const SizedBox(height: 10),
-            Text(label,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 14)),
-            Text(subtitle,
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
-          ],
-        ),
       ),
     );
   }

@@ -109,7 +109,13 @@ class _LoginPageState extends State<LoginPage>
           .maybeSingle();
       if (!mounted) return;
 
-      final role = row?['role'] ?? 'user';
+      if (row == null) {
+        await supabase.auth.signOut();
+        _snack('Account not found. Please sign up first.', error: true);
+        return;
+      }
+
+      final role = row['role'] as String? ?? 'user';
       if (_isAdmin && role != 'admin') {
         await supabase.auth.signOut();
         _snack('Access Denied: Not an admin account', error: true);
@@ -146,19 +152,41 @@ class _LoginPageState extends State<LoginPage>
       if (uid == null) throw Exception('Signup failed');
 
       if (!mounted) return;
-      // Navigate to OTP page; image upload + DB insert happen after verification
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => OtpVerificationPage(
-            email:    _sEmail.text.trim(),
-            fullName: _sName.text.trim(),
-            role:     _isAdmin ? 'admin' : 'user',
-            userId:   uid,
-            picBytes: null,
+
+      if (res.session != null) {
+        // Email confirmation is OFF — user is already signed in, insert directly
+        await supabase.from('users').upsert({
+          'id': uid,
+          'full_name': _sName.text.trim(),
+          'email': _sEmail.text.trim(),
+          'role': _isAdmin ? 'admin' : 'user',
+          'photo_url': '',
+        });
+        if (!mounted) return;
+        _snack(_isAdmin ? 'Admin account created!' : 'Account created!');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _isAdmin
+                ? const AdminDashboardPage()
+                : const UserMainLayout(),
           ),
-        ),
-      );
+        );
+      } else {
+        // Email confirmation is ON — go to OTP verification
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OtpVerificationPage(
+              email:    _sEmail.text.trim(),
+              fullName: _sName.text.trim(),
+              role:     _isAdmin ? 'admin' : 'user',
+              userId:   uid,
+              picBytes: null,
+            ),
+          ),
+        );
+      }
     } on AuthException catch (e) {
       _snack(e.message, error: true);
     } catch (e) {

@@ -6,13 +6,13 @@ import 'app_theme.dart';
 import 'login_page.dart';
 import 'main.dart';
 
-class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+class AdminProfilePage extends StatefulWidget {
+  const AdminProfilePage({super.key});
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  State<AdminProfilePage> createState() => _AdminProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage>
+class _AdminProfilePageState extends State<AdminProfilePage>
     with SingleTickerProviderStateMixin {
   // ── Profile controllers ──
   final _nameCtrl     = TextEditingController();
@@ -20,8 +20,8 @@ class _ProfilePageState extends State<ProfilePage>
   final _emailCtrl    = TextEditingController();
   final _phoneCtrl    = TextEditingController();
 
-  // ── Edit state ──
-  bool   _isEditing   = false;
+  // ── Edit-mode state ──
+  bool   _isEditing  = false;
   String _origName = '', _origUsername = '', _origPhone = '';
 
   // ── Photo ──
@@ -29,10 +29,10 @@ class _ProfilePageState extends State<ProfilePage>
   Uint8List? _picBytes;
   bool       _hasPic   = false;
 
-  // ── Password OTP (3 steps) ──
-  int  _pwStep      = 0;
-  bool _obscureNew  = true;
-  bool _obscureConf = true;
+  // ── Password reset – 3-step ──
+  int  _pwStep        = 0; // 0=trigger, 1=otp, 2=new pass
+  bool _obscureNew    = true;
+  bool _obscureConf   = true;
   final _newPassCtrl  = TextEditingController();
   final _confPassCtrl = TextEditingController();
   final List<TextEditingController> _otpCtls =
@@ -64,16 +64,18 @@ class _ProfilePageState extends State<ProfilePage>
   @override
   void dispose() {
     _animCtrl.dispose();
-    for (final c in [_nameCtrl, _usernameCtrl, _emailCtrl,
-        _phoneCtrl, _newPassCtrl, _confPassCtrl]) {
-      c.dispose();
-    }
+    for (final c in [
+      _nameCtrl, _usernameCtrl, _emailCtrl,
+      _phoneCtrl, _newPassCtrl, _confPassCtrl
+    ]) { c.dispose(); }
     for (final c in _otpCtls) { c.dispose(); }
     for (final f in _otpNodes) { f.dispose(); }
     super.dispose();
   }
 
-  // ─── Data ────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Data
+  // ─────────────────────────────────────────────────────────────────────────────
 
   Future<void> _loadProfile() async {
     _uid = supabase.auth.currentUser?.id;
@@ -99,7 +101,9 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
-  // ─── Edit profile ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Profile actions
+  // ─────────────────────────────────────────────────────────────────────────────
 
   void _startEdit() {
     _origName     = _nameCtrl.text;
@@ -131,13 +135,15 @@ class _ProfilePageState extends State<ProfilePage>
         _snack('Profile updated!');
       }
     } catch (e) {
-      _snack('Failed: $e', error: true);
+      _snack('Failed to update: $e', error: true);
     } finally {
       if (mounted) setState(() => _savingProfile = false);
     }
   }
 
-  // ─── Photo ───────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Photo actions
+  // ─────────────────────────────────────────────────────────────────────────────
 
   Future<void> _pickPhoto() async {
     final img = await ImagePicker()
@@ -170,7 +176,8 @@ class _ProfilePageState extends State<ProfilePage>
   }
 
   Future<void> _removePhoto() async {
-    final ok = await _confirm('Remove Photo', 'Your profile photo will be removed.');
+    final ok = await _confirm('Remove Photo',
+        'Your profile photo will be permanently removed.');
     if (!ok || _uid == null) return;
     setState(() => _savingPhoto = true);
     try {
@@ -187,7 +194,9 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
-  // ─── Password OTP ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Password OTP steps
+  // ─────────────────────────────────────────────────────────────────────────────
 
   Future<void> _sendResetOtp() async {
     setState(() => _sendingOtp = true);
@@ -226,7 +235,7 @@ class _ProfilePageState extends State<ProfilePage>
       await supabase.auth.verifyOTP(
         email: _emailCtrl.text.trim(),
         token: otp,
-        type:  OtpType.recovery,
+        type: OtpType.recovery,
       );
       if (mounted) {
         for (final c in _otpCtls) { c.clear(); }
@@ -251,7 +260,7 @@ class _ProfilePageState extends State<ProfilePage>
       if (mounted) {
         _newPassCtrl.clear(); _confPassCtrl.clear();
         setState(() => _pwStep = 0);
-        _snack('Password changed!');
+        _snack('Password changed successfully!');
       }
     } on AuthException catch (e) {
       _snack(e.message, error: true);
@@ -260,7 +269,9 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
-  // ─── Logout ──────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Logout
+  // ─────────────────────────────────────────────────────────────────────────────
 
   Future<void> _logout() async {
     final ok = await _confirm('Logout', 'Are you sure you want to logout?');
@@ -272,7 +283,9 @@ class _ProfilePageState extends State<ProfilePage>
     }
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────────────────────
 
   void _snack(String msg, {bool error = false}) {
     if (!mounted) return;
@@ -287,6 +300,7 @@ class _ProfilePageState extends State<ProfilePage>
       behavior: SnackBarBehavior.floating,
       margin: const EdgeInsets.all(16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      duration: const Duration(seconds: 3),
     ));
   }
 
@@ -296,9 +310,10 @@ class _ProfilePageState extends State<ProfilePage>
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.darkSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title, style: const TextStyle(
-            color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text(body, style: const TextStyle(color: Colors.white70)),
+        title: Text(title,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(body,
+            style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -312,8 +327,7 @@ class _ProfilePageState extends State<ProfilePage>
                   borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Confirm',
-                style: TextStyle(color: Colors.redAccent,
-                    fontWeight: FontWeight.bold)),
+                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -321,57 +335,33 @@ class _ProfilePageState extends State<ProfilePage>
     return result ?? false;
   }
 
-  // ─── Build ────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Build
+  // ─────────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final name    = _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'User';
-    final initial = name[0].toUpperCase();
+    final name     = _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'Admin';
+    final initial  = name[0].toUpperCase();
 
     return Scaffold(
       backgroundColor: AppColors.darkBg,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A3E),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('My Profile',
-            style: TextStyle(color: Colors.white,
-                fontWeight: FontWeight.bold, fontSize: 18)),
-        actions: [
-          if (!_isEditing)
-            TextButton.icon(
-              onPressed: _startEdit,
-              icon: const Icon(Icons.edit_outlined,
-                  size: 16, color: AppColors.cyan),
-              label: const Text('Edit',
-                  style: TextStyle(color: AppColors.cyan,
-                      fontWeight: FontWeight.bold, fontSize: 13)),
-            ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      appBar: _buildAppBar(),
       body: _initialLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.purple))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.purple))
           : GradientBackground(
               child: FadeTransition(
                 opacity: _animCtrl,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                   child: Column(children: [
-                    // ── Hero ──
+                    // ── Hero avatar section ──
                     _HeroSection(
                       photoUrl: _hasPic && _picBytes != null ? '' : _photoUrl,
                       picBytes: _picBytes,
                       initial:  initial,
                       name:     name,
                       email:    _emailCtrl.text,
-                      role:     'User',
-                      roleColors: const [AppColors.purple, AppColors.cyan],
                     ),
                     const SizedBox(height: 20),
 
@@ -388,13 +378,7 @@ class _ProfilePageState extends State<ProfilePage>
                     const SizedBox(height: 24),
 
                     // ── Logout ──
-                    _GradBtn(
-                      label:  'Logout',
-                      icon:   Icons.logout_rounded,
-                      colors: const [Color(0xFFE74C3C), Color(0xFFC0392B)],
-                      loading: false,
-                      onTap:  _logout,
-                    ),
+                    _buildLogoutBtn(),
                   ]),
                 ),
               ),
@@ -402,41 +386,78 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  // ── Photo card ───────────────────────────────────────────────────────────────
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: const Color(0xFF1A1A3E),
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded,
+            color: Colors.white, size: 20),
+        onPressed: () => Navigator.pop(context),
+      ),
+      title: const Text('Admin Profile',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold,
+              fontSize: 18)),
+      actions: [
+        if (!_isEditing)
+          TextButton.icon(
+            onPressed: _startEdit,
+            icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.cyan),
+            label: const Text('Edit', style: TextStyle(color: AppColors.cyan,
+                fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+
+  // ─── Photo card ───────────────────────────────────────────────────────────────
 
   Widget _buildPhotoCard() {
     return _Card(
-      icon: Icons.photo_camera_outlined,
+      icon:  Icons.photo_camera_outlined,
       title: 'Profile Photo',
       child: Column(children: [
+        // Preview
         if (_hasPic && _picBytes != null) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Image.memory(_picBytes!,
-                height: 110, width: double.infinity, fit: BoxFit.cover),
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              image: DecorationImage(
+                  image: MemoryImage(_picBytes!), fit: BoxFit.cover),
+              boxShadow: [
+                BoxShadow(color: AppColors.purple.withValues(alpha: 0.3),
+                    blurRadius: 12, offset: const Offset(0, 4)),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
         ],
+
         Row(children: [
+          // Change / Pick
           Expanded(
             child: _GradBtn(
-              label:  _hasPic ? 'Upload Photo' : 'Change Photo',
-              icon:   _hasPic ? Icons.upload_rounded : Icons.photo_library_outlined,
+              label: _hasPic ? 'Upload Photo' : 'Change Photo',
+              icon:  _hasPic ? Icons.upload_rounded : Icons.photo_library_outlined,
               colors: AppColors.primaryGradient,
               loading: _hasPic && _savingPhoto,
-              onTap:  _hasPic ? _uploadPhoto : _pickPhoto,
-              small:  true,
+              onTap: _hasPic ? _uploadPhoto : _pickPhoto,
+              small: true,
             ),
           ),
+
+          // Remove (only if has existing or new photo)
           if (_photoUrl.isNotEmpty || _hasPic) ...[
             const SizedBox(width: 10),
             Expanded(
               child: _GradBtn(
-                label:  'Remove',
-                icon:   Icons.delete_outline_rounded,
+                label: 'Remove',
+                icon:  Icons.delete_outline_rounded,
                 colors: const [Color(0xFFE74C3C), Color(0xFFC0392B)],
                 loading: !_hasPic && _savingPhoto,
-                onTap:  _hasPic
+                onTap: _hasPic
                     ? () => setState(() { _picBytes = null; _hasPic = false; })
                     : _removePhoto,
                 small: true,
@@ -448,7 +469,7 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  // ── Profile info card ────────────────────────────────────────────────────────
+  // ─── Profile info card ────────────────────────────────────────────────────────
 
   Widget _buildProfileCard() {
     return _Card(
@@ -460,36 +481,65 @@ class _ProfilePageState extends State<ProfilePage>
               onPressed: _startEdit,
               icon: const Icon(Icons.edit_rounded,
                   color: AppColors.cyan, size: 18),
+              tooltip: 'Edit Profile',
             ),
       child: Column(children: [
-        _InfoField(label: 'Full Name',     icon: Icons.badge_outlined,
-            ctrl: _nameCtrl,     editing: _isEditing, required: true),
-        _InfoField(label: 'Username',      icon: Icons.alternate_email_rounded,
-            ctrl: _usernameCtrl, editing: _isEditing, hint: '@username'),
-        _InfoField(label: 'Email Address', icon: Icons.email_outlined,
-            ctrl: _emailCtrl,   editing: false, readOnly: true,
-            hint: 'Cannot be changed'),
-        _InfoField(label: 'Mobile Number', icon: Icons.phone_outlined,
-            ctrl: _phoneCtrl,   editing: _isEditing,
-            type: TextInputType.phone, hint: '+91 00000 00000', last: true),
+        _InfoField(
+          label:    'Full Name',
+          icon:     Icons.badge_outlined,
+          ctrl:     _nameCtrl,
+          editing:  _isEditing,
+          required: true,
+        ),
+        _InfoField(
+          label:   'Username',
+          icon:    Icons.alternate_email_rounded,
+          ctrl:    _usernameCtrl,
+          editing: _isEditing,
+          hint:    '@username',
+        ),
+        _InfoField(
+          label:    'Email Address',
+          icon:     Icons.email_outlined,
+          ctrl:     _emailCtrl,
+          editing:  false, // always read-only
+          readOnly: true,
+          hint:     'Cannot be changed',
+        ),
+        _InfoField(
+          label:   'Mobile Number',
+          icon:    Icons.phone_outlined,
+          ctrl:    _phoneCtrl,
+          editing: _isEditing,
+          type:    TextInputType.phone,
+          hint:    '+91 00000 00000',
+          last:    true,
+        ),
 
+        // Save / Cancel (edit mode only)
         if (_isEditing) ...[
           const SizedBox(height: 20),
           Row(children: [
             Expanded(
               child: _GradBtn(
-                label: 'Cancel', icon: Icons.close_rounded,
-                colors: const [Color(0xFF636E72), Color(0xFF2D3436)],
-                loading: false, onTap: _cancelEdit, small: true,
+                label:   'Cancel',
+                icon:    Icons.close_rounded,
+                colors:  const [Color(0xFF636E72), Color(0xFF2D3436)],
+                loading: false,
+                onTap:   _cancelEdit,
+                small:   true,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 2,
               child: _GradBtn(
-                label: 'Save Changes', icon: Icons.save_rounded,
-                colors: AppColors.primaryGradient,
-                loading: _savingProfile, onTap: _saveProfile, small: true,
+                label:   'Save Changes',
+                icon:    Icons.save_rounded,
+                colors:  AppColors.primaryGradient,
+                loading: _savingProfile,
+                onTap:   _saveProfile,
+                small:   true,
               ),
             ),
           ]),
@@ -498,7 +548,7 @@ class _ProfilePageState extends State<ProfilePage>
     );
   }
 
-  // ── Security card ────────────────────────────────────────────────────────────
+  // ─── Security card ────────────────────────────────────────────────────────────
 
   Widget _buildSecurityCard() {
     return _Card(
@@ -512,42 +562,19 @@ class _ProfilePageState extends State<ProfilePage>
     // Step 0 — trigger
     if (_pwStep == 0) {
       return Column(children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Row(children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.cyan.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.lock_reset_rounded,
-                  color: AppColors.cyan, size: 20),
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Reset Password',
-                      style: TextStyle(color: Colors.white,
-                          fontWeight: FontWeight.bold, fontSize: 13)),
-                  SizedBox(height: 3),
-                  Text('An OTP will be sent to your email',
-                      style: TextStyle(color: Colors.white54, fontSize: 11)),
-                ]),
-            ),
-          ]),
+        const _SecurityInfoRow(
+          icon:    Icons.lock_reset_rounded,
+          color:   Color(0xFFFC5C7D),
+          title:   'Reset Password',
+          subtitle: 'An OTP will be sent to your registered email',
         ),
         const SizedBox(height: 16),
         _GradBtn(
-          label: 'Send OTP to Email', icon: Icons.send_rounded,
-          colors: const [AppColors.cyan, AppColors.purple],
-          loading: _sendingOtp, onTap: _sendResetOtp,
+          label:   'Send OTP to Email',
+          icon:    Icons.send_rounded,
+          colors:  const [Color(0xFFFC5C7D), Color(0xFF6A3093)],
+          loading: _sendingOtp,
+          onTap:   _sendResetOtp,
         ),
       ]);
     }
@@ -555,78 +582,35 @@ class _ProfilePageState extends State<ProfilePage>
     // Step 1 — OTP entry
     if (_pwStep == 1) {
       return Column(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.purple.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.purple.withValues(alpha: 0.25)),
-          ),
-          child: Row(children: [
-            const Icon(Icons.mark_email_read_outlined,
-                color: AppColors.purple, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text('OTP sent to ${_emailCtrl.text.trim()}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  overflow: TextOverflow.ellipsis),
-            ),
-          ]),
-        ),
+        // Info banner
+        _OtpBanner(email: _emailCtrl.text.trim()),
         const SizedBox(height: 20),
 
-        // 6 OTP boxes
+        // 6 digit boxes
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(6, (i) {
             final filled = _otpCtls[i].text.isNotEmpty;
-            return SizedBox(
-              width: 44, height: 52,
-              child: TextFormField(
-                controller: _otpCtls[i],
-                focusNode:  _otpNodes[i],
-                textAlign:  TextAlign.center,
-                keyboardType: TextInputType.number,
-                maxLength: 1,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onChanged: (v) {
-                  if (v.isNotEmpty && i < 5) _otpNodes[i + 1].requestFocus();
-                  if (v.isEmpty   && i > 0) _otpNodes[i - 1].requestFocus();
-                  setState(() {});
-                },
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
-                    color: filled ? AppColors.cyan : Colors.white),
-                decoration: InputDecoration(
-                  counterText: '',
-                  filled: true,
-                  fillColor: filled
-                      ? AppColors.cyan.withValues(alpha: 0.08)
-                      : Colors.white.withValues(alpha: 0.06),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                          color: filled
-                              ? AppColors.cyan.withValues(alpha: 0.5)
-                              : Colors.white.withValues(alpha: 0.12),
-                          width: filled ? 1.5 : 1)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppColors.cyan, width: 2.5)),
-                ),
-              ),
+            return _OtpBox(
+              ctrl:  _otpCtls[i],
+              node:  _otpNodes[i],
+              filled: filled,
+              onChanged: (v) {
+                if (v.isNotEmpty && i < 5) _otpNodes[i + 1].requestFocus();
+                if (v.isEmpty   && i > 0) _otpNodes[i - 1].requestFocus();
+                setState(() {});
+              },
             );
           }),
         ),
         const SizedBox(height: 20),
 
         _GradBtn(
-          label: 'Verify OTP', icon: Icons.verified_rounded,
-          colors: const [AppColors.cyan, AppColors.purple],
-          loading: _verifyingOtp, onTap: _verifyOtp,
+          label:   'Verify OTP',
+          icon:    Icons.verified_rounded,
+          colors:  const [Color(0xFFFC5C7D), Color(0xFF6A3093)],
+          loading: _verifyingOtp,
+          onTap:   _verifyOtp,
         ),
         const SizedBox(height: 14),
 
@@ -636,19 +620,18 @@ class _ProfilePageState extends State<ProfilePage>
               _pwStep = 0;
               for (final c in _otpCtls) { c.clear(); }
             }),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.white38)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white38)),
           ),
           TextButton.icon(
             onPressed: _resendingOtp ? null : _resendOtp,
             icon: _resendingOtp
                 ? const SizedBox(width: 14, height: 14,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.cyan))
-                : const Icon(Icons.refresh_rounded,
-                    size: 16, color: AppColors.cyan),
+                        strokeWidth: 2, color: Color(0xFFFC5C7D)))
+                : const Icon(Icons.refresh_rounded, size: 16,
+                    color: Color(0xFFFC5C7D)),
             label: const Text('Resend OTP',
-                style: TextStyle(color: AppColors.cyan,
+                style: TextStyle(color: Color(0xFFFC5C7D),
                     fontWeight: FontWeight.bold)),
           ),
         ]),
@@ -657,50 +640,70 @@ class _ProfilePageState extends State<ProfilePage>
 
     // Step 2 — new password
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Success banner
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: const Color(0xFF27AE60).withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: const Color(0xFF27AE60).withValues(alpha: 0.30)),
+          border: Border.all(color: const Color(0xFF27AE60).withValues(alpha: 0.30)),
         ),
         child: const Row(children: [
-          Icon(Icons.check_circle_rounded,
-              color: Color(0xFF27AE60), size: 18),
+          Icon(Icons.check_circle_rounded, color: Color(0xFF27AE60), size: 18),
           SizedBox(width: 10),
           Expanded(child: Text('OTP verified! Set your new password.',
               style: TextStyle(color: Colors.white70, fontSize: 12))),
         ]),
       ),
       const SizedBox(height: 16),
-      _PassField(ctrl: _newPassCtrl,  label: 'New Password',
-          obscure: _obscureNew,
-          onToggle: () => setState(() => _obscureNew = !_obscureNew)),
+
+      _PassField(
+        ctrl:    _newPassCtrl,
+        label:   'New Password',
+        obscure: _obscureNew,
+        onToggle: () => setState(() => _obscureNew = !_obscureNew),
+      ),
       const SizedBox(height: 12),
-      _PassField(ctrl: _confPassCtrl, label: 'Confirm Password',
-          obscure: _obscureConf,
-          onToggle: () => setState(() => _obscureConf = !_obscureConf)),
+      _PassField(
+        ctrl:    _confPassCtrl,
+        label:   'Confirm Password',
+        obscure: _obscureConf,
+        onToggle: () => setState(() => _obscureConf = !_obscureConf),
+      ),
       Padding(
         padding: const EdgeInsets.only(left: 4, top: 6, bottom: 16),
         child: Text('Minimum 6 characters',
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.35), fontSize: 11)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.35),
+                fontSize: 11)),
       ),
+
       _GradBtn(
-        label: 'Save New Password', icon: Icons.lock_rounded,
-        colors: const [Color(0xFF11998E), Color(0xFF38EF7D)],
-        loading: _savingPass, onTap: _saveNewPassword,
+        label:   'Save New Password',
+        icon:    Icons.lock_rounded,
+        colors:  const [Color(0xFF11998E), Color(0xFF38EF7D)],
+        loading: _savingPass,
+        onTap:   _saveNewPassword,
       ),
       const SizedBox(height: 10),
       Center(
         child: TextButton(
           onPressed: () => setState(() => _pwStep = 0),
-          child: const Text('Cancel',
-              style: TextStyle(color: Colors.white38)),
+          child: const Text('Cancel', style: TextStyle(color: Colors.white38)),
         ),
       ),
     ]);
+  }
+
+  // ─── Logout button ────────────────────────────────────────────────────────────
+
+  Widget _buildLogoutBtn() {
+    return _GradBtn(
+      label:  'Logout',
+      icon:   Icons.logout_rounded,
+      colors: const [Color(0xFFE74C3C), Color(0xFFC0392B)],
+      loading: false,
+      onTap:  _logout,
+    );
   }
 }
 
@@ -709,34 +712,33 @@ class _ProfilePageState extends State<ProfilePage>
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _HeroSection extends StatelessWidget {
-  final String photoUrl, initial, name, email, role;
-  final List<Color> roleColors;
+  final String photoUrl, initial, name, email;
   final Uint8List? picBytes;
   const _HeroSection({
     required this.photoUrl, required this.picBytes,
-    required this.initial,  required this.name,
-    required this.email,    required this.role,
-    required this.roleColors,
+    required this.initial,  required this.name, required this.email,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 32),
       child: Column(children: [
+        // Avatar ring
         Container(
           padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(
-                colors: roleColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
+                colors: [AppColors.purple, AppColors.cyan],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
           ),
           child: Container(
             width: 90, height: 90,
             decoration: const BoxDecoration(
-                shape: BoxShape.circle, color: AppColors.darkBg),
+              shape: BoxShape.circle,
+              color: AppColors.darkBg,
+            ),
             child: ClipOval(
               child: picBytes != null
                   ? Image.memory(picBytes!, fit: BoxFit.cover)
@@ -749,21 +751,23 @@ class _HeroSection extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(name,
-            style: const TextStyle(color: Colors.white,
-                fontSize: 22, fontWeight: FontWeight.bold)),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 22,
+                fontWeight: FontWeight.bold, letterSpacing: 0.3)),
         const SizedBox(height: 4),
         Text(email,
-            style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.55), fontSize: 13)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.55),
+                fontSize: 13)),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           decoration: BoxDecoration(
-            gradient: LinearGradient(colors: roleColors),
+            gradient: const LinearGradient(
+                colors: [Color(0xFFFC5C7D), Color(0xFF6A3093)]),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Text(role.toUpperCase(),
-              style: const TextStyle(color: Colors.white, fontSize: 10,
+          child: const Text('ADMINISTRATOR',
+              style: TextStyle(color: Colors.white, fontSize: 10,
                   fontWeight: FontWeight.w800, letterSpacing: 2)),
         ),
       ]),
@@ -778,10 +782,13 @@ class _Initial extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         color: AppColors.darkCard,
         alignment: Alignment.center,
-        child: Text(letter, style: const TextStyle(color: Colors.white,
-            fontSize: 34, fontWeight: FontWeight.bold)),
+        child: Text(letter,
+            style: const TextStyle(color: Colors.white, fontSize: 34,
+                fontWeight: FontWeight.bold)),
       );
 }
+
+// ─── Card wrapper ─────────────────────────────────────────────────────────────
 
 class _Card extends StatelessWidget {
   final IconData icon;
@@ -797,18 +804,21 @@ class _Card extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       borderRadius: BorderRadius.circular(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header row
         Row(children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: AppColors.primaryGradient),
+              gradient: const LinearGradient(
+                  colors: AppColors.primaryGradient),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: Colors.white, size: 16),
           ),
           const SizedBox(width: 12),
-          Text(title, style: const TextStyle(color: Colors.white,
-              fontSize: 15, fontWeight: FontWeight.bold)),
+          Text(title,
+              style: const TextStyle(color: Colors.white,
+                  fontSize: 15, fontWeight: FontWeight.bold)),
           if (trailing != null) ...[const Spacer(), trailing!],
         ]),
         Divider(color: Colors.white.withValues(alpha: 0.08), height: 24),
@@ -818,18 +828,29 @@ class _Card extends StatelessWidget {
   }
 }
 
+// ─── Info field (read/edit) ───────────────────────────────────────────────────
+
 class _InfoField extends StatelessWidget {
   final String label;
   final IconData icon;
   final TextEditingController ctrl;
-  final bool editing, readOnly, required, last;
+  final bool editing;
+  final bool readOnly;
+  final bool required;
+  final bool last;
   final String? hint;
   final TextInputType? type;
+
   const _InfoField({
-    required this.label, required this.icon,
-    required this.ctrl,  required this.editing,
-    this.readOnly = false, this.required = false,
-    this.last = false,     this.hint,     this.type,
+    required this.label,
+    required this.icon,
+    required this.ctrl,
+    required this.editing,
+    this.readOnly  = false,
+    this.required  = false,
+    this.last      = false,
+    this.hint,
+    this.type,
   });
 
   @override
@@ -838,6 +859,7 @@ class _InfoField extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: last ? 0 : 14),
       child: isActive
+          // ── Edit mode ──
           ? TextFormField(
               controller: ctrl,
               keyboardType: type,
@@ -845,15 +867,13 @@ class _InfoField extends StatelessWidget {
               decoration: InputDecoration(
                 labelText: label,
                 hintText: hint,
-                labelStyle:
-                    const TextStyle(color: Colors.white54, fontSize: 13),
-                hintStyle:
-                    const TextStyle(color: Colors.white24, fontSize: 13),
+                labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
+                hintStyle: const TextStyle(color: Colors.white24, fontSize: 13),
                 prefixIcon: Icon(icon, color: AppColors.purple, size: 18),
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.07),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 14),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none),
@@ -867,6 +887,7 @@ class _InfoField extends StatelessWidget {
                         color: AppColors.purple, width: 1.8)),
               ),
             )
+          // ── Read mode ──
           : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(label,
                   style: TextStyle(
@@ -876,7 +897,9 @@ class _InfoField extends StatelessWidget {
               const SizedBox(height: 6),
               Row(children: [
                 Icon(icon,
-                    color: readOnly ? Colors.white30 : AppColors.purple,
+                    color: readOnly
+                        ? Colors.white30
+                        : AppColors.purple,
                     size: 16),
                 const SizedBox(width: 10),
                 Expanded(
@@ -886,7 +909,8 @@ class _InfoField extends StatelessWidget {
                         color: ctrl.text.isNotEmpty
                             ? Colors.white
                             : Colors.white30,
-                        fontSize: 14, fontWeight: FontWeight.w500),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500),
                   ),
                 ),
                 if (readOnly)
@@ -914,13 +938,17 @@ class _InfoField extends StatelessWidget {
   }
 }
 
+// ─── Password field ───────────────────────────────────────────────────────────
+
 class _PassField extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
   final bool obscure;
   final VoidCallback onToggle;
-  const _PassField({required this.ctrl, required this.label,
-      required this.obscure, required this.onToggle});
+  const _PassField({
+    required this.ctrl, required this.label,
+    required this.obscure, required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -932,7 +960,7 @@ class _PassField extends StatelessWidget {
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white54, fontSize: 13),
         prefixIcon: const Icon(Icons.lock_outline_rounded,
-            color: AppColors.cyan, size: 18),
+            color: Color(0xFFFC5C7D), size: 18),
         suffixIcon: IconButton(
           icon: Icon(
               obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -941,23 +969,150 @@ class _PassField extends StatelessWidget {
         ),
         filled: true,
         fillColor: Colors.white.withValues(alpha: 0.07),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide.none),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                BorderSide(color: Colors.white.withValues(alpha: 0.12))),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12))),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide:
-                const BorderSide(color: AppColors.cyan, width: 1.8)),
+            borderSide: const BorderSide(
+                color: Color(0xFFFC5C7D), width: 1.8)),
       ),
     );
   }
 }
+
+// ─── Security info row ────────────────────────────────────────────────────────
+
+class _SecurityInfoRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title, subtitle;
+  const _SecurityInfoRow({
+    required this.icon, required this.color,
+    required this.title, required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: const TextStyle(color: Colors.white,
+                    fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 3),
+            Text(subtitle,
+                style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── OTP banner ──────────────────────────────────────────────────────────────
+
+class _OtpBanner extends StatelessWidget {
+  final String email;
+  const _OtpBanner({required this.email});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.purple.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.purple.withValues(alpha: 0.25)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.mark_email_read_outlined,
+            color: AppColors.purple, size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text('OTP sent to $email',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              overflow: TextOverflow.ellipsis),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── OTP box ──────────────────────────────────────────────────────────────────
+
+class _OtpBox extends StatelessWidget {
+  final TextEditingController ctrl;
+  final FocusNode node;
+  final bool filled;
+  final void Function(String) onChanged;
+  const _OtpBox({
+    required this.ctrl, required this.node,
+    required this.filled, required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 44, height: 52,
+      child: TextFormField(
+        controller: ctrl,
+        focusNode:  node,
+        textAlign:  TextAlign.center,
+        keyboardType: TextInputType.number,
+        maxLength: 1,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onChanged: onChanged,
+        style: TextStyle(
+            fontSize: 20, fontWeight: FontWeight.bold,
+            color: filled ? const Color(0xFFFC5C7D) : Colors.white),
+        decoration: InputDecoration(
+          counterText: '',
+          filled: true,
+          fillColor: filled
+              ? const Color(0xFFFC5C7D).withValues(alpha: 0.08)
+              : Colors.white.withValues(alpha: 0.06),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: filled
+                      ? const Color(0xFFFC5C7D).withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.12),
+                  width: filled ? 1.5 : 1)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                  color: Color(0xFFFC5C7D), width: 2.5)),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Gradient button ──────────────────────────────────────────────────────────
 
 class _GradBtn extends StatelessWidget {
   final String label;
@@ -966,9 +1121,10 @@ class _GradBtn extends StatelessWidget {
   final bool loading;
   final VoidCallback onTap;
   final bool small;
-  const _GradBtn({required this.label, required this.icon,
-      required this.colors, required this.loading,
-      required this.onTap, this.small = false});
+  const _GradBtn({
+    required this.label, required this.icon, required this.colors,
+    required this.loading, required this.onTap, this.small = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -994,7 +1150,8 @@ class _GradBtn extends StatelessWidget {
                 Icon(icon, color: Colors.white, size: small ? 16 : 18),
                 const SizedBox(width: 8),
                 Text(label,
-                    style: TextStyle(color: Colors.white,
+                    style: TextStyle(
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: small ? 12 : 14,
                         letterSpacing: 0.4)),

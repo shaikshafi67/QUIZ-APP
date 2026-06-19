@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'splash_screen.dart';
+import 'auth_gate.dart';
 import 'app_theme.dart';
 
 final supabase = Supabase.instance.client;
@@ -28,7 +28,7 @@ class QuizApp extends StatelessWidget {
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: mode,
-          home: const SplashScreen(),
+          home: const AuthGate(),
         );
       },
     );
