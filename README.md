@@ -261,7 +261,7 @@ lib/
 ## 👨‍💻 Developer
 
 **Shaik Shafi**
-- 5th Semester — CPMAD Project
+- 4th Semester — CPMAD Project
 - Flutter & Supabase
 
 ---
