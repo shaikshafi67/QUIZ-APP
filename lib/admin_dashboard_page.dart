@@ -1,56 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
-// Import all the admin pages
-import 'question_editor_page.dart'; 
-import 'login_page.dart'; 
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'main.dart';
+import 'question_editor_page.dart';
+import 'login_page.dart';
 import 'view_users_page.dart';
 import 'manage_categories_page.dart';
-import 'view_all_scores_page.dart'; // <-- Import the new page
+import 'view_all_scores_page.dart';
 
 class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({super.key});
 
   void _goToAddQuestion(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const QuestionEditorPage()),
-    );
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => const QuestionEditorPage()));
   }
 
   void _goToManageCategories(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ManageCategoriesPage()),
-    );
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => const ManageCategoriesPage()));
   }
 
   void _goToViewUsers(BuildContext context) {
-     Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ViewUsersPage()),
-    );
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const ViewUsersPage()));
   }
 
-  // --- NEW: Function for the Settings button ---
   void _goToViewAllScores(BuildContext context) {
     Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ViewAllScoresPage()),
-    );
+        context, MaterialPageRoute(builder: (_) => const ViewAllScoresPage()));
   }
 
   Future<void> _logout(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
+    await supabase.auth.signOut();
     if (context.mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginPage()),
-        (route) => false, // Remove all previous routes
-      );
+      Navigator.pushAndRemoveUntil(context,
+          MaterialPageRoute(builder: (_) => const LoginPage()), (_) => false);
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -60,12 +46,12 @@ class AdminDashboardPage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context), 
+            onPressed: () => _logout(context),
           ),
         ],
       ),
       body: GridView.count(
-        crossAxisCount: 2, 
+        crossAxisCount: 2,
         padding: const EdgeInsets.all(16.0),
         crossAxisSpacing: 16.0,
         mainAxisSpacing: 16.0,
@@ -86,9 +72,9 @@ class AdminDashboardPage extends StatelessWidget {
             onTap: () => _goToViewUsers(context),
           ),
           AdminMenuCard(
-            title: 'View All Scores', // <-- Title Changed
-            icon: Icons.bar_chart_outlined, // <-- Icon Changed
-            onTap: () => _goToViewAllScores(context), // <-- Function Updated
+            title: 'View All Scores',
+            icon: Icons.bar_chart_outlined,
+            onTap: () => _goToViewAllScores(context),
           ),
         ],
       ),
@@ -96,7 +82,6 @@ class AdminDashboardPage extends StatelessWidget {
   }
 }
 
-// --- Re-usable Card Widget (No changes) ---
 class AdminMenuCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -113,9 +98,7 @@ class AdminMenuCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 4.0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -123,19 +106,13 @@ class AdminMenuCard extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 50,
-                color: Colors.blue,
-              ),
+              Icon(icon, size: 50, color: Colors.blue),
               const SizedBox(height: 16),
               Text(
                 title,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                    fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ],
           ),

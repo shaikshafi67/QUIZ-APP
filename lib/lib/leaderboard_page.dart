@@ -1,44 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Needed for date formatting
-import 'package:quize_app1/logo_background.dart';
-import 'logo_background.dart'; // Keeps your app branding
-
-// --- DATA MODEL ---
-class LeaderboardEntry {
-  final String displayName;
-  final int score;
-  final Timestamp timestamp;
-
-  LeaderboardEntry({
-    required this.displayName,
-    required this.score,
-    required this.timestamp,
-  });
-
-  factory LeaderboardEntry.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
-    
-    // Logic: Try to find 'fullName', if missing use 'email', if missing use 'Anonymous'
-    String name = data['fullName'] ?? data['email'] ?? 'Anonymous';
-    
-    // Optional: If it's an email, hide the @gmail.com part to make it look cleaner
-    if (name.contains('@')) {
-      name = name.split('@')[0];
-    }
-
-    return LeaderboardEntry(
-      displayName: name,
-      score: data['score'] ?? 0,
-      timestamp: data['timestamp'] ?? Timestamp.now(),
-    );
-  }
-}
+import 'package:intl/intl.dart';
+import '../main.dart';
+import '../logo_background.dart';
 
 class LeaderboardPage extends StatelessWidget {
   const LeaderboardPage({super.key});
 
-  // Helper to get Gold/Silver/Bronze icons
   Widget _getRankIcon(int rank) {
     if (rank == 1) {
       return const Icon(Icons.emoji_events, color: Colors.amber, size: 30);
@@ -47,50 +14,39 @@ class LeaderboardPage extends StatelessWidget {
       return const Icon(Icons.emoji_events, color: Colors.grey, size: 30);
     }
     if (rank == 3) {
-      return const Icon(Icons.emoji_events, color: Color(0xFFCD7F32), size: 30); // Bronze
+      return const Icon(Icons.emoji_events,
+          color: Color(0xFFCD7F32), size: 30);
     }
-    return Text(
-      '$rank.',
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-    );
+    return Text('$rank.',
+        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold));
   }
 
-  // Helper to format date
-  String _formatDate(Timestamp timestamp) {
-    final DateTime dateTime = timestamp.toDate();
-    return DateFormat('MMM d, h:mm a').format(dateTime); // e.g., Nov 20, 10:30 AM
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return '';
+    final dt = DateTime.tryParse(dateStr);
+    if (dt == null) return '';
+    return DateFormat('MMM d, h:mm a').format(dt);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leaderboard'),
-        elevation: 0,
-      ),
-      // Use LogoBackground for consistent style
+      appBar: AppBar(title: const Text('Leaderboard'), elevation: 0),
       body: LogoBackground(
-        child: StreamBuilder<QuerySnapshot>(
-          // Fetch top 20 scores, ordered by Score (High to Low) then Time (Old to New)
-          stream: FirebaseFirestore.instance
-              .collection('scores')
-              .orderBy('score', descending: true)
-              .orderBy('timestamp', descending: false) // Tie-breaker: who got the score first
-              .limit(20)
-              .snapshots(),
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: supabase
+              .from('scores')
+              .stream(primaryKey: ['id'])
+              .order('score', ascending: false)
+              .limit(20),
           builder: (context, snapshot) {
-            // 1. Loading
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
-            
-            // 2. Error
             if (snapshot.hasError) {
               return Center(child: Text('Error: ${snapshot.error}'));
             }
-            
-            // 3. Empty
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return const Center(
                 child: Text(
                   'No scores yet.\nBe the first to play!',
@@ -100,59 +56,54 @@ class LeaderboardPage extends StatelessWidget {
               );
             }
 
-            final scores = snapshot.data!.docs;
+            final scores = snapshot.data!;
 
             return ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: scores.length,
               itemBuilder: (context, index) {
-                final entry = LeaderboardEntry.fromFirestore(scores[index]);
+                final entry = scores[index];
                 final rank = index + 1;
+
+                String displayName =
+                    entry['full_name'] ?? entry['email'] ?? 'Anonymous';
+                if (displayName.contains('@')) {
+                  displayName = displayName.split('@')[0];
+                }
+                final score = (entry['score'] as num?)?.toInt() ?? 0;
+                final dateStr = entry['created_at']?.toString();
 
                 return Card(
                   elevation: 3,
-                  // Slightly transparent white to see the logo behind it
                   color: Colors.white.withOpacity(0.95),
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      borderRadius: BorderRadius.circular(12)),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    // Rank Icon (Left)
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
                     leading: SizedBox(
-                      width: 40,
-                      child: Center(child: _getRankIcon(rank)),
-                    ),
-                    // User Name
-                    title: Text(
-                      entry.displayName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    // Date
-                    subtitle: Text(
-                      _formatDate(entry.timestamp),
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                    // Score (Right)
+                        width: 40,
+                        child: Center(child: _getRankIcon(rank))),
+                    title: Text(displayName,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    subtitle: Text(_formatDate(dateStr),
+                        style: TextStyle(
+                            color: Colors.grey[600], fontSize: 12)),
                     trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.blue.shade50,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: Colors.blue.shade100),
                       ),
-                      child: Text(
-                        '${entry.score} pts',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
+                      child: Text('$score pts',
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue)),
                     ),
                   ),
                 );

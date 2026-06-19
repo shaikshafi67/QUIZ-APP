@@ -1,13 +1,13 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'quiz_page.dart'; 
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../quiz_page.dart';
+import '../main.dart';
 
 class QuestionEditorPage extends StatefulWidget {
   final QuizQuestion? questionToEdit;
-  
+
   const QuestionEditorPage({super.key, this.questionToEdit});
 
   @override
@@ -21,29 +21,24 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
   final _option3Controller = TextEditingController();
   final _option4Controller = TextEditingController();
   final _categoryController = TextEditingController();
-  
-  int? _correctAnswerIndex;
-  
-  // --- IMAGE 1: QUESTION IMAGE ---
-  Uint8List? _pickedQuestionImageBytes; 
-  bool _isQuestionImagePicked = false;
-  String _existingQuestionImageUrl = ''; 
-  String _lastUploadedQuestionImageUrl = ''; 
-
-  // --- IMAGE 2: CATEGORY IMAGE ---
-  Uint8List? _pickedCategoryImageBytes; 
-  bool _isCategoryImagePicked = false;
-  String _existingCategoryImageUrl = ''; 
-  String _lastUploadedCategoryImageUrl = ''; 
-
-  final List<Map<String, dynamic>> _questionBatch = [];
+  final _timerController = TextEditingController(text: '30');
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  
-  // Timer & Difficulty
-  final _timerController = TextEditingController(text: '30'); 
+
+  int? _correctAnswerIndex;
   String _selectedDifficulty = 'Easy';
   final List<String> _difficultyOptions = ['Easy', 'Medium', 'Hard'];
+  bool _isLoading = false;
+
+  Uint8List? _pickedQuestionImageBytes;
+  bool _isQuestionImagePicked = false;
+  String _existingQuestionImageUrl = '';
+  String _lastUploadedQuestionImageUrl = '';
+
+  Uint8List? _pickedCategoryImageBytes;
+  bool _isCategoryImagePicked = false;
+  String _lastUploadedCategoryImageUrl = '';
+
+  final List<Map<String, dynamic>> _questionBatch = [];
 
   bool get _isEditMode => widget.questionToEdit != null;
 
@@ -61,207 +56,169 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
       _correctAnswerIndex = q.correctAnswerIndex;
       _timerController.text = q.timerSeconds.toString();
       _selectedDifficulty = q.difficulty;
-      
       if (q.imageUrl.isNotEmpty) {
         _existingQuestionImageUrl = q.imageUrl;
       }
     }
   }
 
-  // --- SUPER FAST UPLOAD SETTINGS ---
   Future<void> _pickQuestionImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
+    final XFile? image = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      imageQuality: 25,   // <--- Low quality for speed
-      maxWidth: 600,      // <--- Resize width
-      maxHeight: 600,     // <--- Resize height
+      imageQuality: 25,
+      maxWidth: 600,
+      maxHeight: 600,
     );
-
     if (image != null) {
-      final imageBytes = await image.readAsBytes();
+      final bytes = await image.readAsBytes();
       setState(() {
-        _pickedQuestionImageBytes = imageBytes;
+        _pickedQuestionImageBytes = bytes;
         _isQuestionImagePicked = true;
-        _existingQuestionImageUrl = ''; 
+        _existingQuestionImageUrl = '';
       });
     }
   }
 
   Future<void> _pickCategoryImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
+    final XFile? image = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      imageQuality: 25,   // <--- Low quality for speed
-      maxWidth: 300,      // <--- Logo can be very small
+      imageQuality: 25,
+      maxWidth: 300,
       maxHeight: 300,
     );
-
     if (image != null) {
-      final imageBytes = await image.readAsBytes();
+      final bytes = await image.readAsBytes();
       setState(() {
-        _pickedCategoryImageBytes = imageBytes;
+        _pickedCategoryImageBytes = bytes;
         _isCategoryImagePicked = true;
-        _existingCategoryImageUrl = ''; 
       });
     }
+  }
+
+  Future<String> _uploadImage(String path, Uint8List bytes) async {
+    await supabase.storage.from('app-images').uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+        );
+    return supabase.storage.from('app-images').getPublicUrl(path);
   }
 
   Future<void> _addQuestionToBatch() async {
     if (!_formKey.currentState!.validate()) return;
     if (_correctAnswerIndex == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select the correct answer')),
-      );
+          const SnackBar(content: Text('Please select the correct answer')));
       return;
     }
 
-    setState(() { _isLoading = true; });
+    setState(() => _isLoading = true);
 
     try {
       String questionImageUrl = '';
       String categoryImageUrl = '';
 
-      // Upload Question Image
       if (_isQuestionImagePicked && _pickedQuestionImageBytes != null) {
-        final String imageName = 'quiz_images/q_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final Reference storageRef = FirebaseStorage.instance.ref().child(imageName);
-        final UploadTask uploadTask = storageRef.putData(_pickedQuestionImageBytes!);
-        final TaskSnapshot taskSnapshot = await uploadTask;
-        questionImageUrl = await taskSnapshot.ref.getDownloadURL();
-        _lastUploadedQuestionImageUrl = questionImageUrl; 
+        final path = 'quiz/q_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        questionImageUrl = await _uploadImage(path, _pickedQuestionImageBytes!);
+        _lastUploadedQuestionImageUrl = questionImageUrl;
       } else {
-        questionImageUrl = _lastUploadedQuestionImageUrl; 
+        questionImageUrl = _lastUploadedQuestionImageUrl;
       }
 
-      // Upload Category Image
       if (_isCategoryImagePicked && _pickedCategoryImageBytes != null) {
-        final String imageName = 'category_images/c_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final Reference storageRef = FirebaseStorage.instance.ref().child(imageName);
-        final UploadTask uploadTask = storageRef.putData(_pickedCategoryImageBytes!);
-        final TaskSnapshot taskSnapshot = await uploadTask;
-        categoryImageUrl = await taskSnapshot.ref.getDownloadURL();
-        _lastUploadedCategoryImageUrl = categoryImageUrl; 
+        final path =
+            'categories/c_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        categoryImageUrl = await _uploadImage(path, _pickedCategoryImageBytes!);
+        _lastUploadedCategoryImageUrl = categoryImageUrl;
       } else {
-        categoryImageUrl = _lastUploadedCategoryImageUrl; 
+        categoryImageUrl = _lastUploadedCategoryImageUrl;
       }
-      
-      // Prepare Data
-      final Map<String, dynamic> questionData = {
+
+      _questionBatch.add({
         'category': _categoryController.text.trim(),
-        'categoryImageUrl': categoryImageUrl, 
-        'questionText': _questionController.text.trim(),
-        'imageUrl': questionImageUrl,
+        'category_image_url': categoryImageUrl,
+        'question_text': _questionController.text.trim(),
+        'image_url': questionImageUrl,
         'options': [
           _option1Controller.text.trim(),
           _option2Controller.text.trim(),
           _option3Controller.text.trim(),
           _option4Controller.text.trim(),
         ],
-        'correctAnswerIndex': _correctAnswerIndex,
-        'timerSeconds': int.tryParse(_timerController.text) ?? 30,
+        'correct_answer_index': _correctAnswerIndex,
+        'timer_seconds': int.tryParse(_timerController.text) ?? 30,
         'difficulty': _selectedDifficulty,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
-      
-      // Add to Batch List
-      _questionBatch.add(questionData);
+      });
 
-      setState(() { _isLoading = false; });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+      setState(() => _isLoading = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Question added! Batch size: ${_questionBatch.length}'),
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 1),
-        ),
-      );
-      
-      _clearForm(); 
-
+        ));
+      }
+      _clearForm();
     } catch (e) {
-      print('Error adding to batch: $e');
-      setState(() { _isLoading = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
   Future<void> _updateQuestion() async {
-     if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) return;
     if (_correctAnswerIndex == null) return;
 
-    setState(() { _isLoading = true; });
+    setState(() => _isLoading = true);
 
     try {
       String questionImageUrl = _existingQuestionImageUrl;
 
       if (_isQuestionImagePicked && _pickedQuestionImageBytes != null) {
-        final String imageName = 'quiz_images/${DateTime.now().millisecondsSinceEpoch}.jpg';
-        final Reference storageRef = FirebaseStorage.instance.ref().child(imageName);
-        final UploadTask uploadTask = storageRef.putData(_pickedQuestionImageBytes!);
-        final TaskSnapshot taskSnapshot = await uploadTask;
-        questionImageUrl = await taskSnapshot.ref.getDownloadURL();
+        final path = 'quiz/${DateTime.now().millisecondsSinceEpoch}.jpg';
+        questionImageUrl = await _uploadImage(path, _pickedQuestionImageBytes!);
       }
 
-      final Map<String, dynamic> questionData = {
+      await supabase.from('quizzes').update({
         'category': _categoryController.text.trim(),
-        'questionText': _questionController.text.trim(),
-        'imageUrl': questionImageUrl,
+        'question_text': _questionController.text.trim(),
+        'image_url': questionImageUrl,
         'options': [
           _option1Controller.text.trim(),
           _option2Controller.text.trim(),
           _option3Controller.text.trim(),
           _option4Controller.text.trim(),
         ],
-        'correctAnswerIndex': _correctAnswerIndex,
-        'timerSeconds': int.tryParse(_timerController.text) ?? 30,
+        'correct_answer_index': _correctAnswerIndex,
+        'timer_seconds': int.tryParse(_timerController.text) ?? 30,
         'difficulty': _selectedDifficulty,
-        'createdAt': widget.questionToEdit!.createdAt, 
-      };
+      }).eq('id', widget.questionToEdit!.id);
 
-      await FirebaseFirestore.instance
-          .collection('quizzes')
-          .doc(widget.questionToEdit!.id)
-          .update(questionData);
-
-      if (mounted) {
-        _showSuccessDialog(isUpdate: true);
-      }
+      if (mounted) _showSuccessDialog(isUpdate: true);
     } catch (e) {
-      print('Error updating: $e');
-      setState(() { _isLoading = false; });
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _publishBatch() async {
     if (_questionBatch.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No questions in batch to publish.')),
-      );
+          const SnackBar(content: Text('No questions in batch to publish.')));
       return;
     }
 
-    setState(() { _isLoading = true; });
+    setState(() => _isLoading = true);
 
     try {
-      final batch = FirebaseFirestore.instance.batch();
-      final collection = FirebaseFirestore.instance.collection('quizzes');
-
-      for (final data in _questionBatch) {
-        final docRef = collection.doc();
-        batch.set(docRef, data);
-      }
-
-      await batch.commit();
-
-      if (mounted) {
-        _showSuccessDialog(isUpdate: false);
-      }
+      await supabase.from('quizzes').insert(_questionBatch);
+      if (mounted) _showSuccessDialog(isUpdate: false);
     } catch (e) {
-      print('Error publishing: $e');
-      setState(() { _isLoading = false; });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -271,7 +228,6 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
     _option2Controller.clear();
     _option3Controller.clear();
     _option4Controller.clear();
-    
     setState(() {
       _pickedQuestionImageBytes = null;
       _isQuestionImagePicked = false;
@@ -286,15 +242,15 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Success!'),
-        content: Text(isUpdate 
-            ? 'Question updated successfully.' 
+        content: Text(isUpdate
+            ? 'Question updated successfully.'
             : '${_questionBatch.length} questions published successfully.'),
         actions: [
           TextButton(
             child: const Text('OK'),
             onPressed: () {
-              Navigator.of(ctx).pop(); 
-              Navigator.of(context).pop(); 
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop();
             },
           ),
         ],
@@ -304,7 +260,13 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
 
   @override
   void dispose() {
-    _questionController.dispose(); _option1Controller.dispose(); _option2Controller.dispose(); _option3Controller.dispose(); _option4Controller.dispose(); _categoryController.dispose(); _timerController.dispose();
+    _questionController.dispose();
+    _option1Controller.dispose();
+    _option2Controller.dispose();
+    _option3Controller.dispose();
+    _option4Controller.dispose();
+    _categoryController.dispose();
+    _timerController.dispose();
     super.dispose();
   }
 
@@ -320,7 +282,8 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
               child: TextButton.icon(
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.blue,
-                  textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  textStyle: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
                   backgroundColor: Colors.blue.withOpacity(0.1),
                 ),
                 icon: const Icon(Icons.cloud_upload),
@@ -338,7 +301,6 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Category + Image
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -350,42 +312,55 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.category),
                         ),
-                        validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
+                        validator: (v) =>
+                            (v == null || v.isEmpty) ? 'Required' : null,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Column(
                       children: [
-                         Container(
-                           width: 50, height: 50,
-                           decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
-                           child: ClipRRect(
-                             borderRadius: BorderRadius.circular(8),
-                             child: _isCategoryImagePicked
-                               ? Image.memory(_pickedCategoryImageBytes!, fit: BoxFit.cover)
-                               : (_lastUploadedCategoryImageUrl.isNotEmpty 
-                                   ? Image.network(_lastUploadedCategoryImageUrl, fit: BoxFit.cover)
-                                   : const Icon(Icons.image, color: Colors.grey)),
-                           ),
-                         ),
-                         TextButton(onPressed: _pickCategoryImage, child: const Text("Logo", style: TextStyle(fontSize: 12)))
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(8)),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: _isCategoryImagePicked
+                                ? Image.memory(_pickedCategoryImageBytes!,
+                                    fit: BoxFit.cover)
+                                : (_lastUploadedCategoryImageUrl.isNotEmpty
+                                    ? Image.network(
+                                        _lastUploadedCategoryImageUrl,
+                                        fit: BoxFit.cover)
+                                    : const Icon(Icons.image,
+                                        color: Colors.grey)),
+                          ),
+                        ),
+                        TextButton(
+                            onPressed: _pickCategoryImage,
+                            child: const Text("Logo",
+                                style: TextStyle(fontSize: 12)))
                       ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                
-                // Difficulty & Timer
                 Row(
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         value: _selectedDifficulty,
-                        decoration: const InputDecoration(labelText: 'Difficulty', border: OutlineInputBorder()),
-                        items: _difficultyOptions.map((String value) {
-                          return DropdownMenuItem<String>(value: value, child: Text(value));
-                        }).toList(),
-                        onChanged: (newValue) => setState(() => _selectedDifficulty = newValue!),
+                        decoration: const InputDecoration(
+                            labelText: 'Difficulty',
+                            border: OutlineInputBorder()),
+                        items: _difficultyOptions
+                            .map((v) =>
+                                DropdownMenuItem(value: v, child: Text(v)))
+                            .toList(),
+                        onChanged: (v) =>
+                            setState(() => _selectedDifficulty = v!),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -393,60 +368,76 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
                       child: TextFormField(
                         controller: _timerController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Timer (Sec)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.timer)),
+                        decoration: const InputDecoration(
+                            labelText: 'Timer (Sec)',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.timer)),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                
-                // Question Image
                 Container(
                   height: 150,
                   width: double.infinity,
-                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade400)),
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade400)),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: () {
-                      if (_isQuestionImagePicked) {
-                        return Image.memory(_pickedQuestionImageBytes!, fit: BoxFit.cover);
-                      } else if (_existingQuestionImageUrl.isNotEmpty) {
-                        return Image.network(_existingQuestionImageUrl, fit: BoxFit.cover);
-                      } else {
-                        return const Center(child: Text('Question Image (Optional)', style: TextStyle(color: Colors.grey)));
-                      }
-                    }(),
+                    child: _isQuestionImagePicked
+                        ? Image.memory(_pickedQuestionImageBytes!,
+                            fit: BoxFit.cover)
+                        : _existingQuestionImageUrl.isNotEmpty
+                            ? Image.network(_existingQuestionImageUrl,
+                                fit: BoxFit.cover)
+                            : const Center(
+                                child: Text('Question Image (Optional)',
+                                    style: TextStyle(color: Colors.grey))),
                   ),
                 ),
                 const SizedBox(height: 8),
-                OutlinedButton.icon(onPressed: _pickQuestionImage, icon: const Icon(Icons.add_photo_alternate), label: const Text('Select Question Image')),
+                OutlinedButton.icon(
+                    onPressed: _pickQuestionImage,
+                    icon: const Icon(Icons.add_photo_alternate),
+                    label: const Text('Select Question Image')),
                 const SizedBox(height: 16),
-
                 TextFormField(
                   controller: _questionController,
                   maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Question Text', border: OutlineInputBorder(), prefixIcon: Icon(Icons.help_outline)),
-                  validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
+                  decoration: const InputDecoration(
+                      labelText: 'Question Text',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.help_outline)),
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 24),
-                
-                const Text('Answer Options (Select Correct Answer)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+                const Text('Answer Options (Select Correct Answer)',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                 _buildOptionField(0, _option1Controller, 'Option 1'),
                 _buildOptionField(1, _option2Controller, 'Option 2'),
                 _buildOptionField(2, _option3Controller, 'Option 3'),
                 _buildOptionField(3, _option4Controller, 'Option 4'),
-                
                 const SizedBox(height: 32),
                 _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : ElevatedButton(
-                        onPressed: _isEditMode ? _updateQuestion : _addQuestionToBatch,
+                        onPressed: _isEditMode
+                            ? _updateQuestion
+                            : _addQuestionToBatch,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text(_isEditMode ? 'Update Question' : 'Add Question to Batch', style: const TextStyle(fontSize: 18)),
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16)),
+                        child: Text(
+                            _isEditMode
+                                ? 'Update Question'
+                                : 'Add Question to Batch',
+                            style: const TextStyle(fontSize: 18)),
                       ),
               ],
             ),
@@ -456,7 +447,8 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
     );
   }
 
-  Widget _buildOptionField(int index, TextEditingController controller, String label) {
+  Widget _buildOptionField(
+      int index, TextEditingController controller, String label) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
@@ -464,9 +456,20 @@ class _QuestionEditorPageState extends State<QuestionEditorPage> {
           Radio<int>(
             value: index,
             groupValue: _correctAnswerIndex,
-            onChanged: (int? value) { setState(() { _correctAnswerIndex = value; }); },
+            onChanged: (v) => setState(() => _correctAnswerIndex = v),
           ),
-          Expanded(child: TextFormField(controller: controller, decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)), validator: (value) => (value == null || value.isEmpty) ? 'Required' : null)),
+          Expanded(
+            child: TextFormField(
+              controller: controller,
+              decoration: InputDecoration(
+                  labelText: label,
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8)),
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Required' : null,
+            ),
+          ),
         ],
       ),
     );

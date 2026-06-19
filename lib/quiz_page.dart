@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'main.dart';
 import 'result_page.dart';
 import 'quiz_summary_page.dart';
 import 'app_theme.dart';
@@ -14,7 +14,7 @@ class QuizQuestion {
   final String categoryName;
   final String difficulty;
   final int timerSeconds;
-  final Timestamp createdAt;
+  final DateTime createdAt;
 
   const QuizQuestion({
     required this.id,
@@ -28,20 +28,19 @@ class QuizQuestion {
     required this.createdAt,
   });
 
-  factory QuizQuestion.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory QuizQuestion.fromMap(Map<String, dynamic> data) {
     return QuizQuestion(
-      id: doc.id,
-      questionText: data['questionText'] ?? '',
+      id: data['id']?.toString() ?? '',
+      questionText: data['question_text'] ?? '',
       options: List<String>.from(data['options'] ?? []),
-      correctAnswerIndex: data['correctAnswerIndex'] ?? 0,
-      imageUrl: data['imageUrl'] ?? '',
+      correctAnswerIndex: (data['correct_answer_index'] as num?)?.toInt() ?? 0,
+      imageUrl: data['image_url'] ?? '',
       categoryName: data['category'] ?? '',
       difficulty: data['difficulty'] ?? 'Easy',
-      timerSeconds: (data['timerSeconds'] is int)
-          ? data['timerSeconds']
-          : int.tryParse(data['timerSeconds'].toString()) ?? 30,
-      createdAt: data['createdAt'] ?? Timestamp.now(),
+      timerSeconds: (data['timer_seconds'] as num?)?.toInt() ?? 30,
+      createdAt: data['created_at'] != null
+          ? DateTime.tryParse(data['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 }
@@ -49,7 +48,8 @@ class QuizQuestion {
 class QuizPage extends StatefulWidget {
   final String categoryName;
   final String difficulty;
-  const QuizPage({super.key, required this.categoryName, required this.difficulty});
+  const QuizPage(
+      {super.key, required this.categoryName, required this.difficulty});
 
   @override
   State<QuizPage> createState() => _QuizPageState();
@@ -66,10 +66,7 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
   late AnimationController _cardController;
   late Animation<double> _cardScale;
   late Animation<double> _cardOpacity;
-
   late AnimationController _optionController;
-
-  // Option selection flash
   int? _flashIndex;
 
   @override
@@ -83,10 +80,8 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
         CurvedAnimation(parent: _cardController, curve: Curves.easeOut));
     _cardOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(parent: _cardController, curve: Curves.easeOut));
-
     _optionController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 300));
-
     _cardController.forward();
   }
 
@@ -99,15 +94,14 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
   }
 
   Future<List<QuizQuestion>> _fetchQuestions() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('quizzes')
-        .where('category', isEqualTo: widget.categoryName)
-        .where('difficulty', isEqualTo: widget.difficulty)
-        .get();
+    final data = await supabase
+        .from('quizzes')
+        .select()
+        .eq('category', widget.categoryName)
+        .eq('difficulty', widget.difficulty);
 
-    if (snapshot.docs.isEmpty) return [];
-    final questions =
-        snapshot.docs.map((d) => QuizQuestion.fromFirestore(d)).toList();
+    if (data.isEmpty) return [];
+    final questions = data.map((d) => QuizQuestion.fromMap(d)).toList();
     if (questions.isNotEmpty) _startTimer(questions[0].timerSeconds);
     return questions;
   }
@@ -224,7 +218,8 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
-                    child: CircularProgressIndicator(color: AppColors.purple));
+                    child:
+                        CircularProgressIndicator(color: AppColors.purple));
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return Center(
@@ -254,8 +249,8 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
                 return const Center(child: CircularProgressIndicator());
               }
               final question = questions[_currentQuestionIndex];
-              final timerRatio =
-                  _remainingSeconds / (question.timerSeconds > 0 ? question.timerSeconds : 1);
+              final timerRatio = _remainingSeconds /
+                  (question.timerSeconds > 0 ? question.timerSeconds : 1);
               final timerColor = _remainingSeconds < 10
                   ? AppColors.pink
                   : _remainingSeconds < 20
@@ -264,7 +259,6 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
 
               return Column(
                 children: [
-                  // Top bar
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                     child: Row(
@@ -314,28 +308,21 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
-
-                  // Progress bar
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: (_currentQuestionIndex + 1) / questions.length,
-                            backgroundColor: Colors.white.withAlpha(20),
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(AppColors.purple),
-                            minHeight: 5,
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value:
+                            (_currentQuestionIndex + 1) / questions.length,
+                        backgroundColor: Colors.white.withAlpha(20),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(AppColors.purple),
+                        minHeight: 5,
+                      ),
                     ),
                   ),
-
-                  // Timer ring + difficulty
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
@@ -357,43 +344,36 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
                                 fontSize: 12),
                           ),
                         ),
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 44,
-                              height: 44,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  CircularProgressIndicator(
-                                    value: timerRatio,
-                                    backgroundColor: Colors.white.withAlpha(20),
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(timerColor),
-                                    strokeWidth: 3,
-                                  ),
-                                  Center(
-                                    child: Text(
-                                      '$_remainingSeconds',
-                                      style: TextStyle(
-                                        color: timerColor,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                        SizedBox(
+                          width: 44,
+                          height: 44,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CircularProgressIndicator(
+                                value: timerRatio,
+                                backgroundColor: Colors.white.withAlpha(20),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    timerColor),
+                                strokeWidth: 3,
                               ),
-                            ),
-                          ],
+                              Center(
+                                child: Text(
+                                  '$_remainingSeconds',
+                                  style: TextStyle(
+                                    color: timerColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Question card
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -426,7 +406,9 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
                                     fontSize: 18,
                                     fontWeight: FontWeight.w600,
                                     height: 1.4,
-                                    color: isDark ? Colors.white : Colors.black87,
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black87,
                                   ),
                                 ),
                               ],
@@ -436,10 +418,7 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 14),
-
-                  // Options
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
@@ -538,8 +517,6 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
                       }),
                     ),
                   ),
-
-                  // Next button
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
                     child: GradientButton(

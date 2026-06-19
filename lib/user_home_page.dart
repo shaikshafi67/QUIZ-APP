@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'main.dart';
 import 'profile_page.dart';
 import 'app_theme.dart';
 
@@ -22,23 +21,27 @@ class _UserHomePageState extends State<UserHomePage>
   late Animation<double> _cardsFade;
 
   Future<Map<String, dynamic>> _getUserData() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = supabase.auth.currentUser;
     if (user == null) return {'name': 'User', 'photoUrl': ''};
     try {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      if (doc.exists) {
+      final data = await supabase
+          .from('users')
+          .select('full_name, photo_url')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (data != null) {
         return {
-          'name': doc.data()?['fullName'] ??
+          'name': data['full_name'] ??
               user.email?.split('@')[0] ??
               'User',
-          'photoUrl': doc.data()?['photoUrl'] ?? '',
+          'photoUrl': data['photo_url'] ?? '',
         };
       }
     } catch (_) {}
-    return {'name': user.email?.split('@')[0] ?? 'User', 'photoUrl': ''};
+    return {
+      'name': user.email?.split('@')[0] ?? 'User',
+      'photoUrl': ''
+    };
   }
 
   @override
@@ -58,8 +61,8 @@ class _UserHomePageState extends State<UserHomePage>
         CurvedAnimation(parent: _cardsController, curve: Curves.easeOut);
 
     _headerController.forward();
-    Future.delayed(const Duration(milliseconds: 300),
-        () => _cardsController.forward());
+    Future.delayed(
+        const Duration(milliseconds: 300), () => _cardsController.forward());
   }
 
   @override
@@ -78,7 +81,6 @@ class _UserHomePageState extends State<UserHomePage>
       body: GradientBackground(
         child: Stack(
           children: [
-            // Decorative blobs
             Positioned(
               top: -50,
               right: -50,
@@ -103,7 +105,6 @@ class _UserHomePageState extends State<UserHomePage>
                 ),
               ),
             ),
-
             SafeArea(
               child: FutureBuilder<Map<String, dynamic>>(
                 future: _getUserData(),
@@ -116,7 +117,6 @@ class _UserHomePageState extends State<UserHomePage>
 
                   return CustomScrollView(
                     slivers: [
-                      // Header
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
@@ -220,7 +220,6 @@ class _UserHomePageState extends State<UserHomePage>
                           ),
                         ),
                       ),
-
                       SliverToBoxAdapter(
                         child: FadeTransition(
                           opacity: _cardsFade,
@@ -230,8 +229,6 @@ class _UserHomePageState extends State<UserHomePage>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: 8),
-
-                                // Hero banner
                                 GlassCard(
                                   gradient: const LinearGradient(
                                     colors: AppColors.primaryGradient,
@@ -296,14 +293,14 @@ class _UserHomePageState extends State<UserHomePage>
                                   ),
                                 ),
                                 const SizedBox(height: 24),
-
-                                // Quick stats
                                 Text(
                                   'Quick Actions',
                                   style: TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
-                                    color: isDark ? Colors.white : Colors.black87,
+                                    color: isDark
+                                        ? Colors.white
+                                        : Colors.black87,
                                   ),
                                 ),
                                 const SizedBox(height: 14),
@@ -314,7 +311,10 @@ class _UserHomePageState extends State<UserHomePage>
                                         icon: '🏆',
                                         label: 'Leaderboard',
                                         subtitle: 'See rankings',
-                                        colors: [AppColors.orange, AppColors.pink],
+                                        colors: [
+                                          AppColors.orange,
+                                          AppColors.pink
+                                        ],
                                         onTap: () => widget.onTabChange(2),
                                       ),
                                     ),
@@ -324,7 +324,10 @@ class _UserHomePageState extends State<UserHomePage>
                                         icon: '📚',
                                         label: 'Categories',
                                         subtitle: 'Browse topics',
-                                        colors: [AppColors.cyan, AppColors.purple],
+                                        colors: [
+                                          AppColors.cyan,
+                                          AppColors.purple
+                                        ],
                                         onTap: () => widget.onTabChange(1),
                                       ),
                                     ),
@@ -338,7 +341,10 @@ class _UserHomePageState extends State<UserHomePage>
                                         icon: '👤',
                                         label: 'Profile',
                                         subtitle: 'Edit your info',
-                                        colors: [AppColors.violet, AppColors.purple],
+                                        colors: [
+                                          AppColors.violet,
+                                          AppColors.purple
+                                        ],
                                         onTap: () => Navigator.push(
                                             context,
                                             MaterialPageRoute(
@@ -352,7 +358,10 @@ class _UserHomePageState extends State<UserHomePage>
                                         icon: '⚡',
                                         label: 'Quick Play',
                                         subtitle: 'Random quiz',
-                                        colors: [Color(0xFFFFD700), AppColors.orange],
+                                        colors: const [
+                                          Color(0xFFFFD700),
+                                          AppColors.orange
+                                        ],
                                         onTap: () => widget.onTabChange(1),
                                       ),
                                     ),
@@ -396,18 +405,14 @@ class _UserHomePageState extends State<UserHomePage>
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
-                child: Text(icon, style: const TextStyle(fontSize: 22)),
-              ),
+                  child: Text(icon, style: const TextStyle(fontSize: 22))),
             ),
             const SizedBox(height: 10),
-            Text(
-              label,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            Text(
-              subtitle,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
+            Text(label,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(subtitle,
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
       ),

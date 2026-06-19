@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'main.dart';
 import 'leaderboard_page.dart';
 import 'user_main_layout.dart';
 import 'app_theme.dart';
@@ -45,8 +44,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         Tween<double>(begin: 0, end: widget.score.toDouble()).animate(
       CurvedAnimation(parent: _scoreController, curve: Curves.easeOut),
     )..addListener(() {
-        setState(() => _displayedScore = _scoreAnimation.value.round());
-      });
+            setState(() => _displayedScore = _scoreAnimation.value.round());
+          });
 
     _scalePop = Tween<double>(begin: 0.5, end: 1.0).animate(
         CurvedAnimation(parent: _scoreController, curve: Curves.elasticOut));
@@ -71,25 +70,26 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
   Future<void> _saveScore() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = supabase.auth.currentUser;
       if (user == null) return;
+
       String userName = user.email?.split('@')[0] ?? 'Unknown';
       try {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-        if (doc.exists) userName = doc.data()?['fullName'] ?? userName;
+        final data = await supabase
+            .from('users')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (data != null) userName = data['full_name'] ?? userName;
       } catch (_) {}
 
-      await FirebaseFirestore.instance.collection('scores').add({
-        'userId': user.uid,
+      await supabase.from('scores').insert({
+        'user_id': user.id,
         'email': user.email,
-        'fullName': userName,
+        'full_name': userName,
         'score': widget.score,
-        'totalQuestions': widget.totalQuestions,
+        'total_questions': widget.totalQuestions,
         'category': widget.categoryName,
-        'timestamp': FieldValue.serverTimestamp(),
       });
     } catch (_) {}
   }
@@ -128,7 +128,6 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         child: GradientBackground(
           child: Stack(
             children: [
-              // Decorative circles
               Positioned(
                 top: -60,
                 right: -60,
@@ -153,15 +152,12 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-
               SafeArea(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     children: [
                       const SizedBox(height: 40),
-
-                      // Score circle
                       ScaleTransition(
                         scale: _scalePop,
                         child: Container(
@@ -185,10 +181,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(
-                                _getEmoji(pct),
-                                style: const TextStyle(fontSize: 36),
-                              ),
+                              Text(_getEmoji(pct),
+                                  style: const TextStyle(fontSize: 36)),
                               const SizedBox(height: 4),
                               Text(
                                 '$_displayedScore',
@@ -209,10 +203,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 28),
-
-                      // Message
                       FadeTransition(
                         opacity: _contentFade,
                         child: SlideTransition(
@@ -220,9 +211,9 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                           child: Column(
                             children: [
                               ShaderMask(
-                                shaderCallback: (b) => LinearGradient(
-                                  colors: gradient,
-                                ).createShader(b),
+                                shaderCallback: (b) =>
+                                    LinearGradient(colors: gradient)
+                                        .createShader(b),
                                 child: Text(
                                   _getMessage(pct),
                                   style: const TextStyle(
@@ -244,8 +235,6 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                 ),
                               ),
                               const SizedBox(height: 28),
-
-                              // Stats row
                               Row(
                                 children: [
                                   Expanded(
@@ -275,15 +264,15 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                       value:
                                           '${widget.totalQuestions - widget.score}',
                                       icon: '❌',
-                                      colors: [AppColors.pink, AppColors.violet],
+                                      colors: [
+                                        AppColors.pink,
+                                        AppColors.violet
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
-
                               const SizedBox(height: 24),
-
-                              // Progress bar
                               GlassCard(
                                 padding: const EdgeInsets.all(16),
                                 child: Column(
@@ -327,17 +316,13 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                   ],
                                 ),
                               ),
-
                               const SizedBox(height: 28),
-
-                              // Buttons
                               GradientButton(
                                 label: 'View Leaderboard',
                                 onPressed: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (_) =>
-                                          const LeaderboardPage()),
+                                      builder: (_) => const LeaderboardPage()),
                                 ),
                                 icon: Icons.leaderboard_rounded,
                                 colors: gradient,
@@ -351,8 +336,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                   (_) => false,
                                 ),
                                 child: GlassCard(
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
@@ -416,10 +401,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
-          ),
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
       ),
     );

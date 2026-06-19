@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'main.dart';
 import 'login_page.dart';
 import 'admin_dashboard_page.dart';
 import 'user_main_layout.dart';
@@ -59,32 +59,36 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _handleNavigation() async {
     await Future.delayed(const Duration(seconds: 3));
-    final user = FirebaseAuth.instance.currentUser;
     if (!mounted) return;
+
+    final user = supabase.auth.currentUser;
 
     if (user == null) {
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (_) => const LoginPage()));
-    } else {
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-        if (mounted) {
-          if (doc.exists && doc.get('role') == 'admin') {
-            Navigator.pushReplacement(context,
-                MaterialPageRoute(builder: (_) => const AdminDashboardPage()));
-          } else {
-            Navigator.pushReplacement(context,
-                MaterialPageRoute(builder: (_) => const UserMainLayout()));
-          }
+      return;
+    }
+
+    try {
+      final data = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (mounted) {
+        if (data != null && data['role'] == 'admin') {
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const AdminDashboardPage()));
+        } else {
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const UserMainLayout()));
         }
-      } catch (_) {
-        if (mounted) {
-          Navigator.pushReplacement(
-              context, MaterialPageRoute(builder: (_) => const LoginPage()));
-        }
+      }
+    } catch (_) {
+      if (mounted) {
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const LoginPage()));
       }
     }
   }
@@ -95,7 +99,6 @@ class _SplashScreenState extends State<SplashScreen>
       body: GradientBackground(
         child: Stack(
           children: [
-            // Decorative circles
             Positioned(
               top: -80,
               right: -80,
@@ -111,13 +114,10 @@ class _SplashScreenState extends State<SplashScreen>
               left: -40,
               child: _decorCircle(120, AppColors.cyan.withAlpha(20)),
             ),
-
-            // Main content
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Animated logo
                   ScaleTransition(
                     scale: _logoScale,
                     child: FadeTransition(
@@ -146,8 +146,6 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                   const SizedBox(height: 32),
-
-                  // Animated text
                   SlideTransition(
                     position: _textSlide,
                     child: FadeTransition(
@@ -181,9 +179,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 80),
-
                   FadeTransition(
                     opacity: _textOpacity,
                     child: SizedBox(

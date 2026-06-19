@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'main.dart';
 import 'login_page.dart';
 import 'difficulty_selection_page.dart';
 import 'app_theme.dart';
@@ -17,7 +17,6 @@ class _DashboardPageState extends State<DashboardPage>
   late AnimationController _controller;
   String _searchQuery = '';
 
-  // Category gradient palettes
   final List<List<Color>> _gradients = [
     [const Color(0xFF667EEA), const Color(0xFF764BA2)],
     [const Color(0xFF00D4FF), const Color(0xFF667EEA)],
@@ -44,7 +43,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   void _logout() async {
-    await FirebaseAuth.instance.signOut();
+    await supabase.auth.signOut();
     if (mounted) {
       Navigator.pushAndRemoveUntil(context,
           MaterialPageRoute(builder: (_) => const LoginPage()), (_) => false);
@@ -75,10 +74,8 @@ class _DashboardPageState extends State<DashboardPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // AppBar area
                   Padding(
-                    padding:
-                        const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -114,8 +111,6 @@ class _DashboardPageState extends State<DashboardPage>
                       ],
                     ),
                   ),
-
-                  // Search bar
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
                     child: GlassCard(
@@ -139,13 +134,11 @@ class _DashboardPageState extends State<DashboardPage>
                       ),
                     ),
                   ),
-
-                  // Grid
                   Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('quizzes')
-                          .snapshots(),
+                    child: StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: supabase
+                          .from('quizzes')
+                          .stream(primaryKey: ['id']),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -157,18 +150,16 @@ class _DashboardPageState extends State<DashboardPage>
                           return Center(
                               child: Text('Error: ${snapshot.error}'));
                         }
-                        if (!snapshot.hasData ||
-                            snapshot.data!.docs.isEmpty) {
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           return _emptyState(isDark);
                         }
 
-                        final docs = snapshot.data!.docs;
+                        final docs = snapshot.data!;
                         final Map<String, String> categoriesWithImages = {};
-                        for (var doc in docs) {
+                        for (var data in docs) {
                           try {
-                            final data = doc.data() as Map<String, dynamic>;
                             final name = data['category'] ?? 'Unknown';
-                            final img = data['categoryImageUrl'] ?? '';
+                            final img = data['category_image_url'] ?? '';
                             if (name != 'Unknown') {
                               if (!categoriesWithImages.containsKey(name) ||
                                   img.isNotEmpty) {
@@ -200,9 +191,7 @@ class _DashboardPageState extends State<DashboardPage>
                             final img = categoriesWithImages[name] ?? '';
                             final gradient =
                                 _gradients[index % _gradients.length];
-
-                            return _buildCategoryCard(
-                                name, img, gradient, index);
+                            return _buildCategoryCard(name, img, gradient, index);
                           },
                         );
                       },
@@ -245,7 +234,6 @@ class _DashboardPageState extends State<DashboardPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Image or gradient icon
               Container(
                 width: 72,
                 height: 72,

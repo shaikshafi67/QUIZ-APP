@@ -1,28 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'main.dart';
 import 'app_theme.dart';
-
-class LeaderboardEntry {
-  final String displayName;
-  final int score;
-  final Timestamp timestamp;
-
-  LeaderboardEntry({
-    required this.displayName,
-    required this.score,
-    required this.timestamp,
-  });
-
-  factory LeaderboardEntry.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return LeaderboardEntry(
-      displayName: data['fullName'] ?? data['email'] ?? 'Anonymous',
-      score: data['score'] ?? 0,
-      timestamp: data['timestamp'] ?? Timestamp.now(),
-    );
-  }
-}
 
 class LeaderboardPage extends StatelessWidget {
   const LeaderboardPage({super.key});
@@ -50,7 +29,6 @@ class LeaderboardPage extends StatelessWidget {
             SafeArea(
               child: Column(
                 children: [
-                  // Header
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
                     child: Row(
@@ -89,7 +67,8 @@ class LeaderboardPage extends StatelessWidget {
                               'Top 20 players',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark ? Colors.white38 : Colors.black38,
+                                color:
+                                    isDark ? Colors.white38 : Colors.black38,
                               ),
                             ),
                           ],
@@ -97,16 +76,13 @@ class LeaderboardPage extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  // List
                   Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('scores')
-                          .orderBy('score', descending: true)
-                          .orderBy('timestamp', descending: false)
-                          .limit(20)
-                          .snapshots(),
+                    child: StreamBuilder<List<Map<String, dynamic>>>(
+                      stream: supabase
+                          .from('scores')
+                          .stream(primaryKey: ['id'])
+                          .order('score', ascending: false)
+                          .limit(20),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -114,8 +90,7 @@ class LeaderboardPage extends StatelessWidget {
                               child: CircularProgressIndicator(
                                   color: AppColors.purple));
                         }
-                        if (!snapshot.hasData ||
-                            snapshot.data!.docs.isEmpty) {
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           return Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -148,16 +123,23 @@ class LeaderboardPage extends StatelessWidget {
                           );
                         }
 
-                        final scores = snapshot.data!.docs;
-
+                        final scores = snapshot.data!;
                         return ListView.builder(
                           padding:
                               const EdgeInsets.symmetric(horizontal: 20),
                           itemCount: scores.length,
                           itemBuilder: (context, index) {
-                            final entry =
-                                LeaderboardEntry.fromFirestore(scores[index]);
+                            final data = scores[index];
                             final rank = index + 1;
+                            final displayName = data['full_name'] ??
+                                data['email'] ??
+                                'Anonymous';
+                            final score =
+                                (data['score'] as num?)?.toInt() ?? 0;
+                            final createdAt = data['created_at'] != null
+                                ? DateTime.tryParse(
+                                    data['created_at'].toString())
+                                : null;
 
                             return TweenAnimationBuilder<double>(
                               tween: Tween(begin: 0, end: 1),
@@ -174,7 +156,7 @@ class LeaderboardPage extends StatelessWidget {
                               child: Padding(
                                 padding: const EdgeInsets.only(bottom: 10),
                                 child: _buildEntry(
-                                    entry, rank, isDark),
+                                    displayName, score, createdAt, rank, isDark),
                               ),
                             );
                           },
@@ -191,41 +173,36 @@ class LeaderboardPage extends StatelessWidget {
     );
   }
 
-  Widget _buildEntry(LeaderboardEntry entry, int rank, bool isDark) {
+  Widget _buildEntry(String displayName, int score, DateTime? createdAt,
+      int rank, bool isDark) {
     final isTop3 = rank <= 3;
     final rankData = _getRankData(rank);
 
     return GlassCard(
       gradient: isTop3
-          ? LinearGradient(
-              colors: [
-                rankData['color'].withAlpha(40),
-                rankData['color'].withAlpha(10),
-              ],
-            )
+          ? LinearGradient(colors: [
+              rankData['color'].withAlpha(40),
+              rankData['color'].withAlpha(10),
+            ])
           : null,
       borderColor: isTop3 ? rankData['color'].withAlpha(80) : null,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          // Rank badge
           Container(
             width: 42,
             height: 42,
             decoration: BoxDecoration(
               gradient: isTop3
                   ? LinearGradient(
-                      colors: [rankData['color'], rankData['color2']],
-                    )
+                      colors: [rankData['color'], rankData['color2']])
                   : null,
               color: isTop3 ? null : Colors.white.withAlpha(15),
               borderRadius: BorderRadius.circular(12),
               boxShadow: isTop3
                   ? [
                       BoxShadow(
-                        color: rankData['color'].withAlpha(80),
-                        blurRadius: 8,
-                      )
+                          color: rankData['color'].withAlpha(80), blurRadius: 8)
                     ]
                   : [],
             ),
@@ -244,37 +221,30 @@ class LeaderboardPage extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-
-          // Avatar circle
           Container(
             width: 38,
             height: 38,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              gradient: const LinearGradient(colors: AppColors.primaryGradient),
+              gradient: LinearGradient(colors: AppColors.primaryGradient),
             ),
             child: Center(
               child: Text(
-                entry.displayName.isNotEmpty
-                    ? entry.displayName[0].toUpperCase()
-                    : '?',
+                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16),
               ),
             ),
           ),
           const SizedBox(width: 12),
-
-          // Name + date
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  entry.displayName,
+                  displayName,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -283,7 +253,9 @@ class LeaderboardPage extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  DateFormat('MMM d, h:mm a').format(entry.timestamp.toDate()),
+                  createdAt != null
+                      ? DateFormat('MMM d, h:mm a').format(createdAt)
+                      : '',
                   style: TextStyle(
                     fontSize: 11,
                     color: isDark ? Colors.white38 : Colors.black38,
@@ -292,11 +264,8 @@ class LeaderboardPage extends StatelessWidget {
               ],
             ),
           ),
-
-          // Score
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               gradient: isTop3
                   ? LinearGradient(
@@ -305,18 +274,15 @@ class LeaderboardPage extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.purple.withAlpha(60),
-                  blurRadius: 8,
-                ),
+                    color: AppColors.purple.withAlpha(60), blurRadius: 8),
               ],
             ),
             child: Text(
-              '${entry.score} pts',
+              '$score pts',
               style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13),
             ),
           ),
         ],

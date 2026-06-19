@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../main.dart';
 import 'result_page.dart';
-import 'quiz_summary_page.dart'; // Ensure you have this file created!
+import 'quiz_summary_page.dart';
 
 class QuizQuestion {
   final String id;
@@ -13,7 +13,7 @@ class QuizQuestion {
   final String categoryName;
   final String difficulty;
   final int timerSeconds;
-  final Timestamp createdAt;
+  final DateTime createdAt;
 
   const QuizQuestion({
     required this.id,
@@ -27,20 +27,19 @@ class QuizQuestion {
     required this.createdAt,
   });
 
-  factory QuizQuestion.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
+  factory QuizQuestion.fromMap(Map<String, dynamic> data) {
     return QuizQuestion(
-      id: doc.id,
-      questionText: data['questionText'] ?? '',
+      id: data['id']?.toString() ?? '',
+      questionText: data['question_text'] ?? '',
       options: List<String>.from(data['options'] ?? []),
-      correctAnswerIndex: data['correctAnswerIndex'] ?? 0,
-      imageUrl: data['imageUrl'] ?? '',
+      correctAnswerIndex: (data['correct_answer_index'] as num?)?.toInt() ?? 0,
+      imageUrl: data['image_url'] ?? '',
       categoryName: data['category'] ?? '',
       difficulty: data['difficulty'] ?? 'Easy',
-      timerSeconds: (data['timerSeconds'] is int) 
-          ? data['timerSeconds'] 
-          : int.tryParse(data['timerSeconds'].toString()) ?? 30,
-      createdAt: data['createdAt'] ?? Timestamp.now(),
+      timerSeconds: (data['timer_seconds'] as num?)?.toInt() ?? 30,
+      createdAt: data['created_at'] != null
+          ? DateTime.tryParse(data['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 }
@@ -50,9 +49,9 @@ class QuizPage extends StatefulWidget {
   final String difficulty;
 
   const QuizPage({
-    super.key, 
-    required this.categoryName, 
-    required this.difficulty
+    super.key,
+    required this.categoryName,
+    required this.difficulty,
   });
 
   @override
@@ -63,7 +62,7 @@ class _QuizPageState extends State<QuizPage> {
   late Future<List<QuizQuestion>> _questionsFuture;
   int _currentQuestionIndex = 0;
   final Map<int, int> _selectedAnswers = {};
-  
+
   Timer? _timer;
   int _remainingSeconds = 0;
 
@@ -80,37 +79,26 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   Future<List<QuizQuestion>> _fetchQuestions() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('quizzes')
-        .where('category', isEqualTo: widget.categoryName)
-        .where('difficulty', isEqualTo: widget.difficulty)
-        .get();
+    final data = await supabase
+        .from('quizzes')
+        .select()
+        .eq('category', widget.categoryName)
+        .eq('difficulty', widget.difficulty);
 
-    if (snapshot.docs.isEmpty) {
-      return []; // Return empty list safely
-    }
-    
-    List<QuizQuestion> loadedQuestions = snapshot.docs.map((doc) => QuizQuestion.fromFirestore(doc)).toList();
-    
-    if (loadedQuestions.isNotEmpty) {
-      _startTimer(loadedQuestions[0].timerSeconds);
-    }
-    
-    return loadedQuestions;
+    if (data.isEmpty) return [];
+
+    final loaded = data.map((d) => QuizQuestion.fromMap(d)).toList();
+    if (loaded.isNotEmpty) _startTimer(loaded[0].timerSeconds);
+    return loaded;
   }
 
   void _startTimer(int seconds) {
     _timer?.cancel();
-    setState(() {
-      _remainingSeconds = seconds;
-    });
-
+    setState(() => _remainingSeconds = seconds);
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
         if (_remainingSeconds > 0) {
-          setState(() {
-            _remainingSeconds--;
-          });
+          setState(() => _remainingSeconds--);
         } else {
           timer.cancel();
           _handleTimeUp();
@@ -121,29 +109,26 @@ class _QuizPageState extends State<QuizPage> {
 
   void _handleTimeUp() async {
     try {
-      List<QuizQuestion> questions = await _questionsFuture;
+      final questions = await _questionsFuture;
       if (_currentQuestionIndex < questions.length - 1) {
         _goToNextQuestion(questions);
       } else {
         _submitQuiz(questions);
       }
     } catch (e) {
-      print("Timer Error: $e");
+      debugPrint("Timer Error: $e");
     }
   }
 
   void _selectAnswer(int index) {
-    setState(() {
-      _selectedAnswers[_currentQuestionIndex] = index;
-    });
+    setState(() => _selectedAnswers[_currentQuestionIndex] = index);
   }
 
-  // --- OPEN SUMMARY ---
   void _openSummary(List<QuizQuestion> questions) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => QuizSummaryPage(
+        builder: (_) => QuizSummaryPage(
           questions: questions,
           selectedAnswers: _selectedAnswers,
           onJumpToQuestion: (index) {
@@ -158,19 +143,15 @@ class _QuizPageState extends State<QuizPage> {
     );
   }
 
-  // --- SUBMIT QUIZ ---
   void _submitQuiz(List<QuizQuestion> questions) {
     int score = 0;
-    _selectedAnswers.forEach((questionIndex, answerIndex) {
-      if (questions[questionIndex].correctAnswerIndex == answerIndex) {
-        score++;
-      }
+    _selectedAnswers.forEach((qi, ai) {
+      if (questions[qi].correctAnswerIndex == ai) score++;
     });
-
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ResultPage(
+        builder: (_) => ResultPage(
           score: score,
           totalQuestions: questions.length,
           categoryName: widget.categoryName,
@@ -181,27 +162,24 @@ class _QuizPageState extends State<QuizPage> {
 
   void _goToNextQuestion(List<QuizQuestion> questions) {
     _timer?.cancel();
-
     if (_currentQuestionIndex < questions.length - 1) {
-      setState(() {
-        _currentQuestionIndex++;
-      });
+      setState(() => _currentQuestionIndex++);
       _startTimer(questions[_currentQuestionIndex].timerSeconds);
     } else {
-      _openSummary(questions); 
+      _openSummary(questions);
     }
   }
 
   Color _getOptionColor(int index) {
-    final int? selectedAnswer = _selectedAnswers[_currentQuestionIndex];
-    if (selectedAnswer == index) return Colors.blue.shade100;
-    return Colors.grey.shade200;
+    final selected = _selectedAnswers[_currentQuestionIndex];
+    return selected == index ? Colors.blue.shade100 : Colors.grey.shade200;
   }
 
   Border _getOptionBorder(int index) {
-    final int? selectedAnswer = _selectedAnswers[_currentQuestionIndex];
-    if (selectedAnswer == index) return Border.all(color: Colors.blue, width: 2);
-    return Border.all(color: Colors.grey.shade300);
+    final selected = _selectedAnswers[_currentQuestionIndex];
+    return selected == index
+        ? Border.all(color: Colors.blue, width: 2)
+        : Border.all(color: Colors.grey.shade300);
   }
 
   @override
@@ -213,37 +191,36 @@ class _QuizPageState extends State<QuizPage> {
           FutureBuilder<List<QuizQuestion>>(
             future: _questionsFuture,
             builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.isEmpty) return const SizedBox();
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const SizedBox();
+              }
               return TextButton(
                 onPressed: () => _openSummary(snapshot.data!),
-                child: const Text("Finish", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                child: const Text("Finish",
+                    style: TextStyle(
+                        color: Colors.blue, fontWeight: FontWeight.bold)),
               );
             },
-          )
+          ),
         ],
       ),
       body: FutureBuilder<List<QuizQuestion>>(
         future: _questionsFuture,
         builder: (context, snapshot) {
-          // 1. Loading
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          // 2. Error
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          // 3. Empty
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No questions found for this mode.'));
+            return const Center(
+                child: Text('No questions found for this mode.'));
           }
-          
+
           final questions = snapshot.data!;
-          
-          // --- CRITICAL SAFETY CHECK ---
-          // If the index is out of range (because quiz finished), show loader instead of crashing.
           if (_currentQuestionIndex >= questions.length) {
-             return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
 
           final question = questions[_currentQuestionIndex];
@@ -256,27 +233,36 @@ class _QuizPageState extends State<QuizPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Q ${_currentQuestionIndex + 1}/${questions.length}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    Text(
+                      'Q ${_currentQuestionIndex + 1}/${questions.length}',
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey),
+                    ),
                     Chip(
                       label: Text('$_remainingSeconds s'),
-                      backgroundColor: _remainingSeconds < 10 ? Colors.red.shade100 : Colors.blue.shade100,
+                      backgroundColor: _remainingSeconds < 10
+                          ? Colors.red.shade100
+                          : Colors.blue.shade100,
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-
                 if (question.imageUrl.isNotEmpty)
                   SizedBox(
                     height: 200,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.network(question.imageUrl, fit: BoxFit.cover),
+                      child: Image.network(question.imageUrl,
+                          fit: BoxFit.cover),
                     ),
                   ),
-                
-                Text(question.questionText, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500)),
+                Text(question.questionText,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 32),
-
                 ...List.generate(question.options.length, (index) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12.0),
@@ -290,19 +276,21 @@ class _QuizPageState extends State<QuizPage> {
                           borderRadius: BorderRadius.circular(12),
                           border: _getOptionBorder(index),
                         ),
-                        child: Text(question.options[index], style: const TextStyle(fontSize: 16)),
+                        child: Text(question.options[index],
+                            style: const TextStyle(fontSize: 16)),
                       ),
                     ),
                   );
                 }),
-                
                 const Spacer(),
-                
                 ElevatedButton(
                   onPressed: () => _goToNextQuestion(questions),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16)),
                   child: Text(
-                    _currentQuestionIndex == questions.length - 1 ? 'Review & Submit' : 'Next', 
+                    _currentQuestionIndex == questions.length - 1
+                        ? 'Review & Submit'
+                        : 'Next',
                     style: const TextStyle(fontSize: 18),
                   ),
                 ),
