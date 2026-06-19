@@ -21,7 +21,7 @@ class _AdminSignUpPageState extends State<AdminSignUpPage> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  // --- IMAGE VARIABLES ---
+  
   Uint8List? _imageBytes;
   bool _isImagePicked = false;
 
@@ -54,7 +54,7 @@ class _AdminSignUpPageState extends State<AdminSignUpPage> {
         password: _passwordController.text.trim(),
       );
 
-      // Upload Image if selected
+      
       String photoUrl = '';
       if (_isImagePicked && _imageBytes != null) {
         try {
@@ -68,7 +68,7 @@ class _AdminSignUpPageState extends State<AdminSignUpPage> {
         'fullName': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'role': 'admin',
-        'photoUrl': photoUrl, // <-- Save URL
+        'photoUrl': photoUrl, 
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -96,7 +96,7 @@ class _AdminSignUpPageState extends State<AdminSignUpPage> {
             key: _formKey,
             child: Column(
               children: [
-                // --- IMAGE PICKER ---
+                
                 GestureDetector(
                   onTap: _pickImage,
                   child: Stack(

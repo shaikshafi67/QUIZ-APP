@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'logo_background.dart';
+import 'app_theme.dart';
 
 class LeaderboardEntry {
-  final String displayName; // Changed to generic name
+  final String displayName;
   final int score;
   final Timestamp timestamp;
 
-  LeaderboardEntry({required this.displayName, required this.score, required this.timestamp});
+  LeaderboardEntry({
+    required this.displayName,
+    required this.score,
+    required this.timestamp,
+  });
 
   factory LeaderboardEntry.fromFirestore(DocumentSnapshot doc) {
-    Map data = doc.data() as Map<String, dynamic>;
-    // LOOK FOR FULL NAME, FALLBACK TO EMAIL
-    String name = data['fullName'] ?? data['email'] ?? 'Anonymous';
+    final data = doc.data() as Map<String, dynamic>;
     return LeaderboardEntry(
-      displayName: name,
+      displayName: data['fullName'] ?? data['email'] ?? 'Anonymous',
       score: data['score'] ?? 0,
       timestamp: data['timestamp'] ?? Timestamp.now(),
     );
@@ -25,89 +27,329 @@ class LeaderboardEntry {
 class LeaderboardPage extends StatelessWidget {
   const LeaderboardPage({super.key});
 
-  Widget _getRankIcon(int rank) {
-    if (rank == 1) return const Icon(Icons.emoji_events, color: Colors.amber, size: 30);
-    if (rank == 2) return const Icon(Icons.emoji_events, color: Colors.grey, size: 30);
-    if (rank == 3) return const Icon(Icons.emoji_events, color: Color(0xFFCD7F32), size: 30);
-    return Text('$rank.', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold));
-  }
-
-  String _formatDate(Timestamp timestamp) {
-    final DateTime dateTime = timestamp.toDate();
-    return DateFormat('MMM d, yyyy - h:mm a').format(dateTime);
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leaderboard'),
-      ),
-      body: LogoBackground(
-        child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('scores')
-              .orderBy('score', descending: true)
-              .orderBy('timestamp', descending: false)
-              .limit(20) 
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text('No scores yet. Be the first!'));
-            }
-
-            final scores = snapshot.data!.docs;
-
-            return ListView.builder(
-              itemCount: scores.length,
-              itemBuilder: (context, index) {
-                final entry = LeaderboardEntry.fromFirestore(scores[index]);
-                final rank = index + 1;
-
-                return Card(
-                  elevation: 2.0,
-                  color: Colors.white.withOpacity(0.95),
-                  margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
-                  child: ListTile(
-                    leading: SizedBox(
-                      width: 40,
-                      child: Center(
-                        child: _getRankIcon(rank),
-                      ),
-                    ),
-                    // --- DISPLAY NAME HERE ---
-                    title: Text(
-                      entry.displayName,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Text(
-                      _formatDate(entry.timestamp), 
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    trailing: Text(
-                      '${entry.score} pts',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue,
-                      ),
+      body: GradientBackground(
+        child: Stack(
+          children: [
+            Positioned(
+              top: -50,
+              right: -50,
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.orange.withAlpha(25),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.orange, AppColors.pink],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.orange.withAlpha(80),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.leaderboard_rounded,
+                              color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Leaderboard',
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              'Top 20 players',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white38 : Colors.black38,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-            );
-          },
+
+                  // List
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('scores')
+                          .orderBy('score', descending: true)
+                          .orderBy('timestamp', descending: false)
+                          .limit(20)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator(
+                                  color: AppColors.purple));
+                        }
+                        if (!snapshot.hasData ||
+                            snapshot.data!.docs.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('🏆',
+                                    style: TextStyle(fontSize: 56)),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No scores yet',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? Colors.white60
+                                        : Colors.black45,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Be the first to play!',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: isDark
+                                        ? Colors.white38
+                                        : Colors.black38,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        final scores = snapshot.data!.docs;
+
+                        return ListView.builder(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 20),
+                          itemCount: scores.length,
+                          itemBuilder: (context, index) {
+                            final entry =
+                                LeaderboardEntry.fromFirestore(scores[index]);
+                            final rank = index + 1;
+
+                            return TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0, end: 1),
+                              duration:
+                                  Duration(milliseconds: 300 + index * 60),
+                              curve: Curves.easeOut,
+                              builder: (context, value, child) => Opacity(
+                                opacity: value,
+                                child: Transform.translate(
+                                  offset: Offset(0, 20 * (1 - value)),
+                                  child: child,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _buildEntry(
+                                    entry, rank, isDark),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildEntry(LeaderboardEntry entry, int rank, bool isDark) {
+    final isTop3 = rank <= 3;
+    final rankData = _getRankData(rank);
+
+    return GlassCard(
+      gradient: isTop3
+          ? LinearGradient(
+              colors: [
+                rankData['color'].withAlpha(40),
+                rankData['color'].withAlpha(10),
+              ],
+            )
+          : null,
+      borderColor: isTop3 ? rankData['color'].withAlpha(80) : null,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          // Rank badge
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              gradient: isTop3
+                  ? LinearGradient(
+                      colors: [rankData['color'], rankData['color2']],
+                    )
+                  : null,
+              color: isTop3 ? null : Colors.white.withAlpha(15),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: isTop3
+                  ? [
+                      BoxShadow(
+                        color: rankData['color'].withAlpha(80),
+                        blurRadius: 8,
+                      )
+                    ]
+                  : [],
+            ),
+            child: Center(
+              child: isTop3
+                  ? Text(rankData['emoji'],
+                      style: const TextStyle(fontSize: 20))
+                  : Text(
+                      '$rank',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white60 : Colors.black54,
+                        fontSize: 14,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Avatar circle
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(colors: AppColors.primaryGradient),
+            ),
+            child: Center(
+              child: Text(
+                entry.displayName.isNotEmpty
+                    ? entry.displayName[0].toUpperCase()
+                    : '?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Name + date
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.displayName,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  DateFormat('MMM d, h:mm a').format(entry.timestamp.toDate()),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark ? Colors.white38 : Colors.black38,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Score
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              gradient: isTop3
+                  ? LinearGradient(
+                      colors: [rankData['color'], rankData['color2']])
+                  : const LinearGradient(colors: AppColors.primaryGradient),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.purple.withAlpha(60),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: Text(
+              '${entry.score} pts',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _getRankData(int rank) {
+    switch (rank) {
+      case 1:
+        return {
+          'emoji': '🥇',
+          'color': const Color(0xFFFFD700),
+          'color2': const Color(0xFFFFA500),
+        };
+      case 2:
+        return {
+          'emoji': '🥈',
+          'color': const Color(0xFFC0C0C0),
+          'color2': const Color(0xFF808080),
+        };
+      case 3:
+        return {
+          'emoji': '🥉',
+          'color': const Color(0xFFCD7F32),
+          'color2': const Color(0xFF8B4513),
+        };
+      default:
+        return {
+          'emoji': '',
+          'color': AppColors.purple,
+          'color2': AppColors.violet,
+        };
+    }
   }
 }

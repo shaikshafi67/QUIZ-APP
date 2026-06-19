@@ -5,15 +5,6 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
-///
-/// Example:
-/// ```dart
-/// import 'firebase_options.dart';
-/// // ...
-/// await Firebase.initializeApp(
-///   options: DefaultFirebaseOptions.currentPlatform,
-/// );
-/// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -40,50 +31,49 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyD8xIqsLd8sWwpiJ074R35QSK5NdKVBbAg',
-    appId: '1:532212759054:web:3bac875c5e6821f80e9a5f',
-    messagingSenderId: '532212759054',
-    projectId: 'quiz-app-26f96',
-    authDomain: 'quiz-app-26f96.firebaseapp.com',
-    storageBucket: 'quiz-app-26f96.firebasestorage.app',
-    measurementId: 'G-0JTXCR1Z5C',
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyDKP_e5smN7Caso79iE7LfArAW16D9H1W4',
+    appId: '1:940227783128:android:ff5a938487843531456aad',
+    messagingSenderId: '940227783128',
+    projectId: 'quiz-app-new-da9c7',
+    storageBucket: 'quiz-app-new-da9c7.firebasestorage.app',
   );
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBBx6BSmDOhnNvXBRjUK1RXPuEOFLKCIz4',
-    appId: '1:532212759054:android:6a17a6dc6c3d474e0e9a5f',
-    messagingSenderId: '532212759054',
-    projectId: 'quiz-app-26f96',
-    storageBucket: 'quiz-app-26f96.firebasestorage.app',
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCtVqzq06TiDfZ83utg2trgO3TXZ3uWQTE',
+    appId: '1:940227783128:web:376be33fd8ed0044456aad',
+    messagingSenderId: '940227783128',
+    projectId: 'quiz-app-new-da9c7',
+    authDomain: 'quiz-app-new-da9c7.firebaseapp.com',
+    storageBucket: 'quiz-app-new-da9c7.firebasestorage.app',
+    measurementId: 'G-NR8ELH47DK',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBwkeHnwir22cHxcRjADGwHjMRL3-4PeK0',
-    appId: '1:532212759054:ios:5feb5ec7315395310e9a5f',
-    messagingSenderId: '532212759054',
-    projectId: 'quiz-app-26f96',
-    storageBucket: 'quiz-app-26f96.firebasestorage.app',
+    apiKey: 'AIzaSyDKP_e5smN7Caso79iE7LfArAW16D9H1W4',
+    appId: '1:940227783128:android:ff5a938487843531456aad',
+    messagingSenderId: '940227783128',
+    projectId: 'quiz-app-new-da9c7',
+    storageBucket: 'quiz-app-new-da9c7.firebasestorage.app',
     iosBundleId: 'com.example.quizeApp1',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBwkeHnwir22cHxcRjADGwHjMRL3-4PeK0',
-    appId: '1:532212759054:ios:5feb5ec7315395310e9a5f',
-    messagingSenderId: '532212759054',
-    projectId: 'quiz-app-26f96',
-    storageBucket: 'quiz-app-26f96.firebasestorage.app',
+    apiKey: 'AIzaSyDKP_e5smN7Caso79iE7LfArAW16D9H1W4',
+    appId: '1:940227783128:android:ff5a938487843531456aad',
+    messagingSenderId: '940227783128',
+    projectId: 'quiz-app-new-da9c7',
+    storageBucket: 'quiz-app-new-da9c7.firebasestorage.app',
     iosBundleId: 'com.example.quizeApp1',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyD8xIqsLd8sWwpiJ074R35QSK5NdKVBbAg',
-    appId: '1:532212759054:web:8047d8b55c35b5dd0e9a5f',
-    messagingSenderId: '532212759054',
-    projectId: 'quiz-app-26f96',
-    authDomain: 'quiz-app-26f96.firebaseapp.com',
-    storageBucket: 'quiz-app-26f96.firebasestorage.app',
-    measurementId: 'G-J0J20JWWZG',
+    apiKey: 'AIzaSyCtVqzq06TiDfZ83utg2trgO3TXZ3uWQTE',
+    appId: '1:940227783128:web:376be33fd8ed0044456aad',
+    messagingSenderId: '940227783128',
+    projectId: 'quiz-app-new-da9c7',
+    authDomain: 'quiz-app-new-da9c7.firebaseapp.com',
+    storageBucket: 'quiz-app-new-da9c7.firebasestorage.app',
+    measurementId: 'G-NR8ELH47DK',
   );
-
 }

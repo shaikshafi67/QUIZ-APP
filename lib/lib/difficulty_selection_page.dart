@@ -14,7 +14,7 @@ class DifficultySelectionPage extends StatelessWidget {
       MaterialPageRoute(
         builder: (context) => QuizPage(
           categoryName: categoryName,
-          difficulty: difficulty, // Pass the selected difficulty
+          difficulty: difficulty, 
         ),
       ),
     );

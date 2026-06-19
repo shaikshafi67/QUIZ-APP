@@ -2,160 +2,413 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'logo_background.dart';
-import 'profile_page.dart'; // <-- Import Profile Page
+import 'profile_page.dart';
+import 'app_theme.dart';
 
-class UserHomePage extends StatelessWidget {
+class UserHomePage extends StatefulWidget {
   final Function(int) onTabChange;
-
   const UserHomePage({super.key, required this.onTabChange});
 
-  // Function to get the user's real name from Firestore
-  Future<String> _getUserName() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return 'User';
+  @override
+  State<UserHomePage> createState() => _UserHomePageState();
+}
 
+class _UserHomePageState extends State<UserHomePage>
+    with TickerProviderStateMixin {
+  late AnimationController _headerController;
+  late AnimationController _cardsController;
+  late Animation<double> _headerFade;
+  late Animation<Offset> _headerSlide;
+  late Animation<double> _cardsFade;
+
+  Future<Map<String, dynamic>> _getUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return {'name': 'User', 'photoUrl': ''};
     try {
       final doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
-      
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data() as Map<String, dynamic>;
-        return data['fullName'] ?? user.email?.split('@')[0] ?? 'User';
+      if (doc.exists) {
+        return {
+          'name': doc.data()?['fullName'] ??
+              user.email?.split('@')[0] ??
+              'User',
+          'photoUrl': doc.data()?['photoUrl'] ?? '',
+        };
       }
-    } catch (e) {
-      print("Error fetching name: $e");
-    }
-    // Fallback to email name if database fails
-    return user.email?.split('@')[0] ?? 'User';
+    } catch (_) {}
+    return {'name': user.email?.split('@')[0] ?? 'User', 'photoUrl': ''};
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _headerController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _cardsController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+
+    _headerFade =
+        CurvedAnimation(parent: _headerController, curve: Curves.easeOut);
+    _headerSlide =
+        Tween<Offset>(begin: const Offset(0, -0.2), end: Offset.zero).animate(
+            CurvedAnimation(parent: _headerController, curve: Curves.easeOut));
+    _cardsFade =
+        CurvedAnimation(parent: _cardsController, curve: Curves.easeOut);
+
+    _headerController.forward();
+    Future.delayed(const Duration(milliseconds: 300),
+        () => _cardsController.forward());
+  }
+
+  @override
+  void dispose() {
+    _headerController.dispose();
+    _cardsController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final String date = DateFormat('EEEE, d MMMM').format(DateTime.now());
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final date = DateFormat('EEEE, d MMM').format(DateTime.now());
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        elevation: 0,
-        automaticallyImplyLeading: false, // No back button on home
-        actions: [
-          // --- PROFILE BUTTON ---
-          IconButton(
-            icon: const Icon(Icons.account_circle, size: 32, color: Colors.blue),
-            tooltip: 'My Profile',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfilePage()),
-              );
-            },
-          ),
-          const SizedBox(width: 16),
-        ],
-      ),
-      body: LogoBackground(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Date Display
-              Text(
-                date.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.bold,
+      body: GradientBackground(
+        child: Stack(
+          children: [
+            // Decorative blobs
+            Positioned(
+              top: -50,
+              right: -50,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.purple.withAlpha(30),
                 ),
               ),
-              const SizedBox(height: 8),
+            ),
+            Positioned(
+              top: 120,
+              left: -70,
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.cyan.withAlpha(20),
+                ),
+              ),
+            ),
 
-              // --- DYNAMIC NAME FETCHING ---
-              FutureBuilder<String>(
-                future: _getUserName(),
+            SafeArea(
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _getUserData(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                     return const SizedBox(
-                       height: 40, 
-                       width: 150,
-                       child: Align(
-                         alignment: Alignment.centerLeft, 
-                         child: LinearProgressIndicator()
-                       )
-                     );
-                  }
-                  
-                  // Default name if data is missing
-                  String displayName = snapshot.data ?? "User"; 
-                  
-                  // Capitalize first letter
-                  if (displayName.isNotEmpty) {
-                    displayName = displayName[0].toUpperCase() + displayName.substring(1);
-                  }
+                  final name = snapshot.data?['name'] ?? 'User';
+                  final photoUrl = snapshot.data?['photoUrl'] ?? '';
+                  final displayName = name.isNotEmpty
+                      ? name[0].toUpperCase() + name.substring(1)
+                      : 'User';
 
-                  return Text(
-                    'Hello, \n$displayName 👋',
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
+                  return CustomScrollView(
+                    slivers: [
+                      // Header
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                          child: FadeTransition(
+                            opacity: _headerFade,
+                            child: SlideTransition(
+                              position: _headerSlide,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        date.toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isDark
+                                              ? Colors.white38
+                                              : Colors.black38,
+                                          letterSpacing: 1.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      RichText(
+                                        text: TextSpan(
+                                          children: [
+                                            TextSpan(
+                                              text: 'Hello, ',
+                                              style: TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.w400,
+                                                color: isDark
+                                                    ? Colors.white70
+                                                    : Colors.black54,
+                                              ),
+                                            ),
+                                            TextSpan(
+                                              text: displayName,
+                                              style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.purple,
+                                              ),
+                                            ),
+                                            const TextSpan(
+                                              text: ' 👋',
+                                              style: TextStyle(fontSize: 24),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      const DarkModeToggle(),
+                                      const SizedBox(width: 10),
+                                      GestureDetector(
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const ProfilePage()),
+                                        ),
+                                        child: Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: const LinearGradient(
+                                                colors:
+                                                    AppColors.primaryGradient),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: AppColors.purple
+                                                    .withAlpha(80),
+                                                blurRadius: 10,
+                                              ),
+                                            ],
+                                          ),
+                                          child: photoUrl.isNotEmpty
+                                              ? ClipOval(
+                                                  child: Image.network(
+                                                      photoUrl,
+                                                      fit: BoxFit.cover),
+                                                )
+                                              : const Icon(Icons.person,
+                                                  color: Colors.white,
+                                                  size: 22),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      SliverToBoxAdapter(
+                        child: FadeTransition(
+                          opacity: _cardsFade,
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 8),
+
+                                // Hero banner
+                                GlassCard(
+                                  gradient: const LinearGradient(
+                                    colors: AppColors.primaryGradient,
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  padding: const EdgeInsets.all(24),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Ready to challenge\nyourself?',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 20,
+                                                fontWeight: FontWeight.bold,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            GestureDetector(
+                                              onTap: () =>
+                                                  widget.onTabChange(1),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 20,
+                                                        vertical: 10),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: Colors.black
+                                                          .withAlpha(40),
+                                                      blurRadius: 8,
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: const Text(
+                                                  'Start Quiz →',
+                                                  style: TextStyle(
+                                                    color: AppColors.purple,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text('🧠',
+                                          style: TextStyle(fontSize: 64)),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+
+                                // Quick stats
+                                Text(
+                                  'Quick Actions',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _quickActionCard(
+                                        icon: '🏆',
+                                        label: 'Leaderboard',
+                                        subtitle: 'See rankings',
+                                        colors: [AppColors.orange, AppColors.pink],
+                                        onTap: () => widget.onTabChange(2),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: _quickActionCard(
+                                        icon: '📚',
+                                        label: 'Categories',
+                                        subtitle: 'Browse topics',
+                                        colors: [AppColors.cyan, AppColors.purple],
+                                        onTap: () => widget.onTabChange(1),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _quickActionCard(
+                                        icon: '👤',
+                                        label: 'Profile',
+                                        subtitle: 'Edit your info',
+                                        colors: [AppColors.violet, AppColors.purple],
+                                        onTap: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (_) =>
+                                                    const ProfilePage())),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: _quickActionCard(
+                                        icon: '⚡',
+                                        label: 'Quick Play',
+                                        subtitle: 'Random quiz',
+                                        colors: [Color(0xFFFFD700), AppColors.orange],
+                                        onTap: () => widget.onTabChange(1),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
-              
-              const SizedBox(height: 32),
-              
-              // "Start Quiz" Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.blue, Colors.blueAccent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blue.withOpacity(0.4),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Ready to test your skills?',
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Choose a topic and start learning today!',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () => onTabChange(1), // Switch to Quiz Tab
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.blue,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                      child: const Text('Start Quiz Now'),
-                    ),
-                  ],
-                ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _quickActionCard({
+    required String icon,
+    required String label,
+    required String subtitle,
+    required List<Color> colors,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: GlassCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: colors),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
-          ),
+              child: Center(
+                child: Text(icon, style: const TextStyle(fontSize: 22)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            Text(
+              subtitle,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ],
         ),
       ),
     );

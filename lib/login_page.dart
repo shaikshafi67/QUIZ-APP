@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:quize_app1/lib/admin_signup_page.dart';
-
-// --- IMPORTS FOR NAVIGATION ---
 import 'signup_page.dart';
 import 'admin_dashboard_page.dart';
 import 'user_main_layout.dart';
-import 'logo_background.dart';
-import 'admin_signup_page.dart'; // <-- THIS IS THE IMPORT YOU WERE MISSING
+import 'lib/admin_signup_page.dart';
+import 'app_theme.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,210 +14,327 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  
   bool _isLoading = false;
   bool _isPasswordVisible = false;
-  
-  // State to track if we are in "Admin Mode"
-  bool _isAdminMode = false; 
+  bool _isAdminMode = false;
+
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeAnimation =
+        CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+            CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
+    _fadeController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _isLoading = true; });
-
+    setState(() => _isLoading = true);
     try {
-      // 1. Sign In
-      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-
-      // 2. Check Role in Database
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+      final doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(userCredential.user!.uid)
+          .doc(cred.user!.uid)
           .get();
-
       if (mounted) {
-        if (userDoc.exists && userDoc['role'] == 'admin') {
-          // If Admin -> Go to Admin Dashboard
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminDashboardPage()));
+        if (doc.exists && doc['role'] == 'admin') {
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const AdminDashboardPage()));
         } else {
-          // If User -> Go to User App (Home/Quiz/Leaderboard)
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const UserMainLayout()));
+          Navigator.pushReplacement(context,
+              MaterialPageRoute(builder: (_) => const UserMainLayout()));
         }
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message ?? 'Login failed'), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.message ?? 'Login failed'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
       }
     } finally {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _toggleAdminMode() {
     setState(() {
       _isAdminMode = !_isAdminMode;
-      // Clear fields when switching to avoid confusion
       _emailController.clear();
       _passwordController.clear();
     });
+    _fadeController.reset();
+    _fadeController.forward();
   }
 
   @override
   Widget build(BuildContext context) {
+    final accent = _isAdminMode ? AppColors.pink : AppColors.purple;
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          // Toggle Button (User <-> Admin)
-          TextButton.icon(
-            onPressed: _toggleAdminMode,
-            icon: Icon(
-              _isAdminMode ? Icons.person : Icons.admin_panel_settings, 
-              color: Colors.grey
-            ),
-            label: Text(
-              _isAdminMode ? "User Login" : "Admin Login", 
-              style: const TextStyle(color: Colors.grey)
-            ),
-          )
-        ],
-      ),
-      extendBodyBehindAppBar: true, 
-      
-      body: LogoBackground( 
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset('assets/images/logo.png', width: 100, height: 100),
-                  const SizedBox(height: 24),
-                  
-                  // Title changes based on mode
-                  Text(
-                    _isAdminMode ? 'Admin Portal' : 'Welcome Back!',
-                    style: TextStyle(
-                      fontSize: 28, 
-                      fontWeight: FontWeight.bold,
-                      color: _isAdminMode ? Colors.redAccent : Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _isAdminMode 
-                        ? 'Please enter your administrative credentials' 
-                        : 'Log in to continue your quiz journey',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
-                  ),
-                  const SizedBox(height: 48),
-                  
-                  // Email Field
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      hintText: _isAdminMode ? 'admin@gmail.com' : 'Enter your email',
-                      prefixIcon: Icon(Icons.email, color: _isAdminMode ? Colors.redAccent : Colors.grey),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.9),
-                      focusedBorder: _isAdminMode ? OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-                      ) : null,
-                    ),
-                    validator: (v) => (v == null || v.isEmpty || !v.contains('@')) ? 'Enter a valid email' : null,
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Password Field
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: !_isPasswordVisible,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      hintText: 'Enter your password',
-                      prefixIcon: Icon(Icons.lock, color: _isAdminMode ? Colors.redAccent : Colors.grey),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.9),
-                      focusedBorder: _isAdminMode ? OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.redAccent, width: 2),
-                      ) : null,
-                      suffixIcon: IconButton(
-                        icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
-                        onPressed: () { setState(() { _isPasswordVisible = !_isPasswordVisible; }); },
-                      ),
-                    ),
-                    validator: (v) => (v == null || v.length < 6) ? 'Password must be 6+ chars' : null,
-                  ),
-                  const SizedBox(height: 30),
-                  
-                  // Login Button
-                  _isLoading
-                      ? const CircularProgressIndicator()
-                      : ElevatedButton(
-                          onPressed: _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _isAdminMode ? Colors.redAccent : Colors.blue,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 55),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            elevation: 3,
-                          ),
-                          child: Text(_isAdminMode ? 'Access Dashboard' : 'Login', style: const TextStyle(fontSize: 20)),
-                        ),
-                  const SizedBox(height: 20),
-                  
-                  // --- SWITCH LINK BASED ON MODE ---
-                  if (!_isAdminMode)
-                    // USER MODE: Link to User Sign Up
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text("Don't have an account?", style: TextStyle(fontSize: 16)),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => const SignUpPage()));
-                          },
-                          child: const Text('Sign Up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue)),
-                        ),
-                      ],
-                    )
-                  else
-                    // ADMIN MODE: Link to Admin Sign Up (with Secret Key)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text("New Admin?", style: TextStyle(fontSize: 16)),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => const AdminSignUpPage()));
-                          },
-                          child: const Text('Register Here', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-                        ),
-                      ],
-                    ),
-                ],
+      body: GradientBackground(
+        child: Stack(
+          children: [
+            // Decorative elements
+            Positioned(
+              top: -60,
+              right: -60,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withAlpha(35),
+                ),
               ),
             ),
-          ),
+            Positioned(
+              bottom: 60,
+              left: -80,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.violet.withAlpha(25),
+                ),
+              ),
+            ),
+
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    // Top bar
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const DarkModeToggle(),
+                          GestureDetector(
+                            onTap: _toggleAdminMode,
+                            child: GlassCard(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              borderRadius: BorderRadius.circular(30),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _isAdminMode
+                                        ? Icons.person
+                                        : Icons.admin_panel_settings,
+                                    color: accent,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _isAdminMode ? 'User' : 'Admin',
+                                    style: TextStyle(
+                                        color: accent,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: SlideTransition(
+                        position: _slideAnimation,
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              // Logo
+                              Container(
+                                width: 90,
+                                height: 90,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    colors: _isAdminMode
+                                        ? [AppColors.pink, AppColors.orange]
+                                        : AppColors.primaryGradient,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: accent.withAlpha(100),
+                                      blurRadius: 24,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                padding: const EdgeInsets.all(14),
+                                child: Image.asset('assets/images/logo.png'),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Title
+                              ShaderMask(
+                                shaderCallback: (b) => LinearGradient(
+                                  colors: _isAdminMode
+                                      ? [AppColors.pink, AppColors.orange]
+                                      : [AppColors.purple, AppColors.cyan],
+                                ).createShader(b),
+                                child: Text(
+                                  _isAdminMode ? 'Admin Portal' : 'Welcome Back',
+                                  style: const TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _isAdminMode
+                                    ? 'Enter your admin credentials'
+                                    : 'Login to continue your journey',
+                                style: TextStyle(
+                                  color: Colors.white.withAlpha(130),
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 40),
+
+                              // Form card
+                              GlassCard(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  children: [
+                                    GlassTextField(
+                                      controller: _emailController,
+                                      label: 'Email',
+                                      icon: Icons.email_outlined,
+                                      keyboardType: TextInputType.emailAddress,
+                                      accentColor: accent,
+                                      validator: (v) =>
+                                          (v == null || !v.contains('@'))
+                                              ? 'Enter a valid email'
+                                              : null,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    GlassTextField(
+                                      controller: _passwordController,
+                                      label: 'Password',
+                                      icon: Icons.lock_outline,
+                                      isPassword: true,
+                                      isPasswordVisible: _isPasswordVisible,
+                                      accentColor: accent,
+                                      onTogglePassword: () => setState(() =>
+                                          _isPasswordVisible =
+                                              !_isPasswordVisible),
+                                      validator: (v) =>
+                                          (v == null || v.length < 6)
+                                              ? 'Min 6 characters'
+                                              : null,
+                                    ),
+                                    const SizedBox(height: 28),
+                                    GradientButton(
+                                      label: _isAdminMode
+                                          ? 'Access Dashboard'
+                                          : 'Login',
+                                      onPressed: _login,
+                                      isLoading: _isLoading,
+                                      colors: _isAdminMode
+                                          ? [AppColors.pink, AppColors.orange]
+                                          : AppColors.primaryGradient,
+                                      icon: _isAdminMode
+                                          ? Icons.admin_panel_settings
+                                          : Icons.login,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Bottom link
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _isAdminMode
+                                        ? 'New Admin? '
+                                        : "Don't have an account? ",
+                                    style: TextStyle(
+                                        color: Colors.white.withAlpha(130),
+                                        fontSize: 14),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => _isAdminMode
+                                            ? const AdminSignUpPage()
+                                            : const SignUpPage(),
+                                      ),
+                                    ),
+                                    child: ShaderMask(
+                                      shaderCallback: (b) => LinearGradient(
+                                        colors: _isAdminMode
+                                            ? [AppColors.pink, AppColors.orange]
+                                            : [AppColors.purple, AppColors.cyan],
+                                      ).createShader(b),
+                                      child: Text(
+                                        _isAdminMode
+                                            ? 'Register Here'
+                                            : 'Sign Up',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 40),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

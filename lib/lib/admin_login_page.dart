@@ -147,7 +147,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 
                 const SizedBox(height: 30),
 
-                // --- NEW: LINK TO ADMIN REGISTRATION ---
+                
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
