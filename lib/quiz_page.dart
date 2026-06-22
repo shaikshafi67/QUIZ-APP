@@ -374,50 +374,68 @@ class _QuizPageState extends State<QuizPage> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: ScaleTransition(
-                        scale: _cardScale,
-                        child: FadeTransition(
-                          opacity: _cardOpacity,
-                          child: GlassCard(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              children: [
-                                if (question.imageUrl.isNotEmpty)
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(
-                                      question.imageUrl,
-                                      height: 140,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          const SizedBox(),
-                                    ),
-                                  ),
-                                if (question.imageUrl.isNotEmpty)
-                                  const SizedBox(height: 16),
-                                Text(
-                                  question.questionText,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                    height: 1.4,
-                                    color: isDark
-                                        ? Colors.white
-                                        : Colors.black87,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: ScaleTransition(
+                      scale: _cardScale,
+                      child: FadeTransition(
+                        opacity: _cardOpacity,
+                        child: GlassCard(
+                          padding: const EdgeInsets.all(22),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (question.imageUrl.isNotEmpty) ...[
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: Image.network(
+                                    question.imageUrl,
+                                    height: 150,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        const SizedBox(),
                                   ),
                                 ),
+                                const SizedBox(height: 16),
                               ],
-                            ),
+                              // Question number indicator
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 4),
+                                margin: const EdgeInsets.only(bottom: 14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.purple.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: AppColors.purple.withValues(alpha: 0.30)),
+                                ),
+                                child: Text(
+                                  'Question ${_currentQuestionIndex + 1}',
+                                  style: const TextStyle(
+                                      color: AppColors.purple,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5),
+                                ),
+                              ),
+                              Text(
+                                question.questionText,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.5,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 14),
                   const SizedBox(height: 14),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
